@@ -1,17 +1,24 @@
-name: Deploy to Elastic Beanstalk
+name: Main CI/CD Pipeline
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
+  workflow_dispatch:
 
 env:
-  AWS_REGION: us-east-1
   JAVA_VERSION: '21'
-  JAVA_DISTRIBUTION: 'corretto'
-  ARTIFACT_NAME: omnisolve-api-0.0.1-SNAPSHOT.jar
+  JAVA_DISTRIBUTION: 'temurin'
+  AWS_REGION: us-east-1
+  ARTIFACT_NAME: omnisolve-api-0.0.1.jar
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # Stage 1: Build artifact once
   build:
     name: Build Application
     runs-on: ubuntu-latest
@@ -19,66 +26,212 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+      
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: ${{ env.JAVA_DISTRIBUTION }}
-          cache: 'maven'
-
+          cache: maven
+      
       - name: Build with Maven
         run: ./mvnw clean package -DskipTests
-
-      - name: Verify artifact exists
-        run: |
-          if [ ! -f "target/${{ env.ARTIFACT_NAME }}" ]; then
-            echo "Error: Artifact not found at target/${{ env.ARTIFACT_NAME }}"
-            exit 1
-          fi
-          echo "Artifact found: target/${{ env.ARTIFACT_NAME }}"
-          ls -lh target/${{ env.ARTIFACT_NAME }}
-
-      - name: Upload artifact for deployment
+      
+      - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
         with:
-          name: application-artifact
-          path: target/${{ env.ARTIFACT_NAME }}
+          name: application-jar
+          path: target/*.jar
           retention-days: 30
+          if-no-files-found: error
 
+  # Stage 2: Run tests
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: build
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: omnisolve_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+      
+      - name: Run tests
+        env:
+          DB_URL: jdbc:postgresql://localhost:5432/omnisolve_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+          JWT_ENABLED: false
+        run: ./mvnw test
+
+  # Stage 3: Quality gates (parallel checks)
+  code-quality:
+    name: Code Quality - Spotless
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+      
+      - name: Check code formatting
+        run: ./mvnw spotless:check
+
+  qodana-scan:
+    name: Code Quality - Qodana
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      
+      - name: Qodana Scan
+        uses: JetBrains/qodana-action@v2025.3
+        env:
+          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
+        with:
+          pr-mode: ${{ github.event_name == 'pull_request' }}
+          use-caches: true
+          post-pr-comment: true
+          use-annotations: true
+          upload-result: true
+          push-fixes: 'none'
+
+  # Stage 4: Build Docker image (only on main branch)
+  docker-build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [code-quality, qodana-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: application-jar
+          path: target
+      
+      - name: Verify artifact
+        run: |
+          echo "Downloaded artifacts:"
+          ls -lh target/
+          if [ ! -f "target/${{ env.ARTIFACT_NAME }}" ]; then
+            echo "Error: Expected artifact not found"
+            exit 1
+          fi
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # Stage 5: Deploy to DEV
   deploy-dev:
     name: Deploy to DEV
     runs-on: ubuntu-latest
-    needs: build
+    needs: [code-quality, qodana-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: development
       url: http://${{ steps.deploy.outputs.environment_cname }}
     
     steps:
-      - name: Download artifact
+      - name: Download JAR artifact
         uses: actions/download-artifact@v4
         with:
-          name: application-artifact
-
-      - name: Verify downloaded artifact
+          name: application-jar
+      
+      - name: Verify artifact
         run: |
-          ls -lh ${{ env.ARTIFACT_NAME }}
+          echo "Artifact for deployment:"
+          ls -lh
+          mv *.jar ${{ env.ARTIFACT_NAME }}
           echo "Artifact size: $(du -h ${{ env.ARTIFACT_NAME }} | cut -f1)"
-
+      
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-
+      
       - name: Generate version label
         id: version
         run: |
           VERSION_LABEL="dev-$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA::7}"
           echo "label=$VERSION_LABEL" >> $GITHUB_OUTPUT
           echo "Deploying version: $VERSION_LABEL"
-
+      
       - name: Deploy to Elastic Beanstalk DEV
         id: deploy
         uses: einaregilsson/beanstalk-deploy@v22
@@ -93,29 +246,22 @@ jobs:
           deployment_package: ${{ env.ARTIFACT_NAME }}
           wait_for_deployment: true
           wait_for_environment_recovery: 300
-
+      
       - name: Verify DEV deployment
         run: |
           echo "Deployment to DEV completed successfully"
           echo "Environment URL: http://${{ steps.deploy.outputs.environment_cname }}"
-          echo "Version Label: ${{ steps.version.outputs.label }}"
-          
-          # Wait for application to be ready
           sleep 30
           
-          # Test health endpoint
           HEALTH_URL="http://${{ steps.deploy.outputs.environment_cname }}/api/health"
-          echo "Testing health endpoint: $HEALTH_URL"
-          
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
           
           if [ "$HTTP_CODE" -eq 200 ]; then
             echo "✅ Health check passed (HTTP $HTTP_CODE)"
           else
             echo "⚠️  Health check returned HTTP $HTTP_CODE"
-            echo "Application may still be starting up"
           fi
-
+      
       - name: Create deployment summary
         run: |
           echo "## 🚀 DEV Deployment Successful" >> $GITHUB_STEP_SUMMARY
@@ -124,9 +270,8 @@ jobs:
           echo "**Version:** \`${{ steps.version.outputs.label }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**URL:** http://${{ steps.deploy.outputs.environment_cname }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Ready for production approval" >> $GITHUB_STEP_SUMMARY
 
+  # Stage 6: Deploy to PROD (manual approval via environment protection)
   deploy-prod:
     name: Deploy to PROD
     runs-on: ubuntu-latest
@@ -136,32 +281,33 @@ jobs:
       url: http://${{ steps.deploy.outputs.environment_cname }}
     
     steps:
-      - name: Download artifact
+      - name: Download JAR artifact
         uses: actions/download-artifact@v4
         with:
-          name: application-artifact
-
+          name: application-jar
+      
       - name: Verify artifact integrity
         run: |
-          echo "Deploying the same artifact that was tested in DEV"
-          ls -lh ${{ env.ARTIFACT_NAME }}
+          echo "Deploying the same artifact tested in DEV"
+          ls -lh
+          mv *.jar ${{ env.ARTIFACT_NAME }}
           echo "Artifact checksum:"
           sha256sum ${{ env.ARTIFACT_NAME }}
-
+      
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-
+      
       - name: Generate version label
         id: version
         run: |
           VERSION_LABEL="prod-$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA::7}"
           echo "label=$VERSION_LABEL" >> $GITHUB_OUTPUT
           echo "Deploying version: $VERSION_LABEL"
-
+      
       - name: Deploy to Elastic Beanstalk PROD
         id: deploy
         uses: einaregilsson/beanstalk-deploy@v22
@@ -176,29 +322,22 @@ jobs:
           deployment_package: ${{ env.ARTIFACT_NAME }}
           wait_for_deployment: true
           wait_for_environment_recovery: 300
-
+      
       - name: Verify PROD deployment
         run: |
           echo "Deployment to PROD completed successfully"
           echo "Environment URL: http://${{ steps.deploy.outputs.environment_cname }}"
-          echo "Version Label: ${{ steps.version.outputs.label }}"
-          
-          # Wait for application to be ready
           sleep 30
           
-          # Test health endpoint
           HEALTH_URL="http://${{ steps.deploy.outputs.environment_cname }}/api/health"
-          echo "Testing health endpoint: $HEALTH_URL"
-          
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
           
           if [ "$HTTP_CODE" -eq 200 ]; then
             echo "✅ Health check passed (HTTP $HTTP_CODE)"
           else
             echo "⚠️  Health check returned HTTP $HTTP_CODE"
-            echo "Application may still be starting up"
           fi
-
+      
       - name: Create deployment summary
         run: |
           echo "## 🎉 PROD Deployment Successful" >> $GITHUB_STEP_SUMMARY
@@ -207,10 +346,3 @@ jobs:
           echo "**Version:** \`${{ steps.version.outputs.label }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**URL:** http://${{ steps.deploy.outputs.environment_cname }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Production deployment complete" >> $GITHUB_STEP_SUMMARY
-
-      - name: Notify deployment completion
-        run: |
-          echo "🚀 Production deployment completed successfully!"
-          echo "The same artifact from DEV has been promoted to PROD"
