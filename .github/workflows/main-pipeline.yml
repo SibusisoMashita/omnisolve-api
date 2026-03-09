@@ -196,7 +196,11 @@ jobs:
         run: |
           echo "Artifact for deployment:"
           ls -lh
-          mv *.jar ${{ env.ARTIFACT_NAME }}
+          # Artifact is already named correctly, just verify
+          if [ ! -f "${{ env.ARTIFACT_NAME }}" ]; then
+            echo "Error: Expected artifact not found"
+            exit 1
+          fi
           echo "Artifact size: $(du -h ${{ env.ARTIFACT_NAME }} | cut -f1)"
       
       - name: Configure AWS credentials
@@ -271,7 +275,11 @@ jobs:
         run: |
           echo "Deploying the same artifact tested in DEV"
           ls -lh
-          mv *.jar ${{ env.ARTIFACT_NAME }}
+          # Artifact is already named correctly, just verify
+          if [ ! -f "${{ env.ARTIFACT_NAME }}" ]; then
+            echo "Error: Expected artifact not found"
+            exit 1
+          fi
           echo "Artifact checksum:"
           sha256sum ${{ env.ARTIFACT_NAME }}
       

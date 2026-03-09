@@ -1,4 +1,7 @@
-target/
+# Exclude target directory except the final JAR
+target/*
+!target/*.jar
+
 .idea/
 .git/
 .gitignore
