@@ -23,3 +23,28 @@ output "postgres_security_group_id" {
   description = "Security group ID attached to PostgreSQL"
 }
 
+output "beanstalk_application_name" {
+  value       = module.omnisolve.beanstalk_application_name
+  description = "Elastic Beanstalk application name"
+}
+
+output "beanstalk_environment_name" {
+  value       = module.omnisolve.beanstalk_environment_name
+  description = "Elastic Beanstalk environment name"
+}
+
+output "beanstalk_environment_url" {
+  value       = module.omnisolve.beanstalk_environment_url
+  description = "Elastic Beanstalk environment URL"
+}
+
+output "beanstalk_cname" {
+  value       = module.omnisolve.beanstalk_cname
+  description = "Elastic Beanstalk CNAME"
+}
+
+output "deployments_bucket_name" {
+  value       = module.omnisolve.deployments_bucket_name
+  description = "S3 bucket for Beanstalk deployment artifacts"
+}
+

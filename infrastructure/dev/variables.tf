@@ -24,3 +24,14 @@ variable "s3_bucket_name" {
   description = "S3 bucket name for document storage"
 }
 
+variable "public_subnet_ids" {
+  type        = list(string)
+  description = "Public subnet IDs for Elastic Beanstalk instances"
+}
+
+variable "aws_region" {
+  type        = string
+  description = "AWS region for deployment"
+  default     = "us-east-1"
+}
+

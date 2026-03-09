@@ -1,6 +1,8 @@
 vpc_id               = "vpc-075b3102672a9af26"
 private_subnet_ids   = ["subnet-048004a221680c742", "subnet-015e73eb696f8577c"]
+public_subnet_ids    = ["subnet-XXXXXXXXXXXXXXXXX", "subnet-YYYYYYYYYYYYYYYYY"]
 allowed_cidr_blocks  = ["172.31.0.0/16"]
 db_password          = "CHANGE_ME_PROD_PASSWORD"
 s3_bucket_name       = "prod-omnisolve-documents"
+aws_region           = "us-east-1"
 

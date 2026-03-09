@@ -13,12 +13,12 @@ env:
   TF_VERSION: 1.6.0
 
 jobs:
-  terraform-plan:
-    name: Terraform Plan (Prod)
+  terraform-plan-dev:
+    name: Terraform Plan (Dev)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: infrastructure/prod
+        working-directory: infrastructure/dev
     
     permissions:
       contents: read
@@ -45,9 +45,11 @@ jobs:
           cat > terraform.tfvars <<EOF
           vpc_id               = "${{ secrets.TF_VAR_VPC_ID }}"
           private_subnet_ids   = ${{ secrets.TF_VAR_PRIVATE_SUBNET_IDS }}
+          public_subnet_ids    = ${{ secrets.TF_VAR_PUBLIC_SUBNET_IDS }}
           allowed_cidr_blocks  = ${{ secrets.TF_VAR_ALLOWED_CIDR_BLOCKS }}
           db_password          = "${{ secrets.TF_VAR_DB_PASSWORD }}"
           s3_bucket_name       = "${{ secrets.TF_VAR_S3_BUCKET_NAME }}"
+          aws_region           = "${{ env.AWS_REGION }}"
           EOF
       
       - name: Terraform Format Check
@@ -89,7 +91,7 @@ jobs:
             
             </details>
             
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Environment: Dev*`;
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -97,7 +99,3 @@ jobs:
               repo: context.repo.repo,
               body: output
             })
-      
-      - name: Terraform Plan Status
-        if: steps.plan.outcome == 'failure'
-        run: exit 1

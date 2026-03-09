@@ -23,3 +23,28 @@ output "postgres_security_group_id" {
   description = "Security group ID attached to PostgreSQL"
 }
 
+output "beanstalk_application_name" {
+  value       = aws_elastic_beanstalk_application.api.name
+  description = "Elastic Beanstalk application name"
+}
+
+output "beanstalk_environment_name" {
+  value       = aws_elastic_beanstalk_environment.api.name
+  description = "Elastic Beanstalk environment name"
+}
+
+output "beanstalk_environment_url" {
+  value       = "http://${aws_elastic_beanstalk_environment.api.cname}"
+  description = "Elastic Beanstalk environment URL"
+}
+
+output "beanstalk_cname" {
+  value       = aws_elastic_beanstalk_environment.api.cname
+  description = "Elastic Beanstalk CNAME"
+}
+
+output "deployments_bucket_name" {
+  value       = aws_s3_bucket.deployments.bucket
+  description = "S3 bucket for Beanstalk deployment artifacts"
+}
+
