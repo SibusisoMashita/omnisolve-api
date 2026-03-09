@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    # URL will be auto-configured by embedded-postgres
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+    clean-disabled: false
+
+# Disable JWT security for tests
+app:
+  security:
+    jwt:
+      enabled: false
+  s3:
+    region: us-east-1
+    bucket: test-bucket
+
+logging:
+  level:
+    org.springframework: warn
+    com.omnisolve: info
+    io.zonky.test.db.postgres: debug

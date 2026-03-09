@@ -55,12 +55,14 @@ public class DocumentService {
         this.s3StorageService = s3StorageService;
     }
 
+    @Transactional(readOnly = true)
     public List<DocumentResponse> listDocuments() {
         return documentRepository.findAll().stream()
                 .map(this::toResponse)
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public DocumentResponse getDocument(UUID id) {
         return toResponse(findDocument(id));
     }
