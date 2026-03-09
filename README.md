@@ -20,7 +20,7 @@ Developed by [Valo Systems](https://valosystems.co.za/)
 
 ### Prerequisites
 - Java 21
-- Docker & Docker Compose (for local development)
+- Docker & Docker Compose (for local development) make sure dockeri is tunni
 
 ### Run Locally
 
