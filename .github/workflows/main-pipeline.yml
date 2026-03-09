@@ -184,7 +184,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: development
-      url: http://${{ steps.deploy.outputs.environment_cname }}
+      url: ${{ steps.beanstalk-url.outputs.url }}
     
     steps:
       - name: Download JAR artifact
@@ -232,13 +232,29 @@ jobs:
           wait_for_deployment: true
           wait_for_environment_recovery: 300
       
+      - name: Get Elastic Beanstalk URL
+        id: beanstalk-url
+        run: |
+          CNAME=$(aws elasticbeanstalk describe-environments \
+            --environment-names "${{ secrets.EB_ENVIRONMENT_NAME_DEV }}" \
+            --query "Environments[0].CNAME" \
+            --output text)
+          
+          if [ "$CNAME" = "None" ] || [ -z "$CNAME" ]; then
+            echo "Failed to retrieve Elastic Beanstalk CNAME"
+            exit 1
+          fi
+          
+          echo "url=http://$CNAME" >> $GITHUB_OUTPUT
+          echo "Retrieved environment URL: http://$CNAME"
+      
       - name: Verify DEV deployment
         run: |
           echo "Deployment to DEV completed successfully"
-          echo "Environment URL: http://${{ steps.deploy.outputs.environment_cname }}"
+          echo "Environment URL: ${{ steps.beanstalk-url.outputs.url }}"
           sleep 30
           
-          HEALTH_URL="http://${{ steps.deploy.outputs.environment_cname }}/api/health"
+          HEALTH_URL="${{ steps.beanstalk-url.outputs.url }}/api/health"
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
           
           if [ "$HTTP_CODE" -eq 200 ]; then
@@ -254,7 +270,7 @@ jobs:
           echo "**Environment:** DEV" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** \`${{ steps.version.outputs.label }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**URL:** http://${{ steps.deploy.outputs.environment_cname }}" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** ${{ steps.beanstalk-url.outputs.url }}" >> $GITHUB_STEP_SUMMARY
 
   # Stage 6: Deploy to PROD (manual approval via environment protection)
   deploy-prod:
@@ -263,7 +279,7 @@ jobs:
     needs: deploy-dev
     environment:
       name: production
-      url: http://${{ steps.deploy.outputs.environment_cname }}
+      url: ${{ steps.beanstalk-url.outputs.url }}
     
     steps:
       - name: Download JAR artifact
@@ -312,13 +328,29 @@ jobs:
           wait_for_deployment: true
           wait_for_environment_recovery: 300
       
+      - name: Get Elastic Beanstalk URL
+        id: beanstalk-url
+        run: |
+          CNAME=$(aws elasticbeanstalk describe-environments \
+            --environment-names "${{ secrets.EB_ENVIRONMENT_NAME_PROD }}" \
+            --query "Environments[0].CNAME" \
+            --output text)
+          
+          if [ "$CNAME" = "None" ] || [ -z "$CNAME" ]; then
+            echo "Failed to retrieve Elastic Beanstalk CNAME"
+            exit 1
+          fi
+          
+          echo "url=http://$CNAME" >> $GITHUB_OUTPUT
+          echo "Retrieved environment URL: http://$CNAME"
+      
       - name: Verify PROD deployment
         run: |
           echo "Deployment to PROD completed successfully"
-          echo "Environment URL: http://${{ steps.deploy.outputs.environment_cname }}"
+          echo "Environment URL: ${{ steps.beanstalk-url.outputs.url }}"
           sleep 30
           
-          HEALTH_URL="http://${{ steps.deploy.outputs.environment_cname }}/api/health"
+          HEALTH_URL="${{ steps.beanstalk-url.outputs.url }}/api/health"
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
           
           if [ "$HTTP_CODE" -eq 200 ]; then
@@ -334,4 +366,4 @@ jobs:
           echo "**Environment:** PRODUCTION" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** \`${{ steps.version.outputs.label }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**URL:** http://${{ steps.deploy.outputs.environment_cname }}" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** ${{ steps.beanstalk-url.outputs.url }}" >> $GITHUB_STEP_SUMMARY
