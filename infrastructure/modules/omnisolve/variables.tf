@@ -1,0 +1,56 @@
+variable "project_name" {
+  type        = string
+  description = "Project slug"
+}
+
+variable "environment" {
+  type        = string
+  description = "Deployment environment"
+}
+
+variable "vpc_id" {
+  type        = string
+  description = "VPC ID where RDS will be deployed"
+}
+
+variable "private_subnet_ids" {
+  type        = list(string)
+  description = "Private subnet IDs for RDS subnet group"
+}
+
+variable "allowed_cidr_blocks" {
+  type        = list(string)
+  description = "CIDR blocks allowed to connect to PostgreSQL"
+}
+
+variable "db_name" {
+  type        = string
+  description = "Database name"
+}
+
+variable "db_username" {
+  type        = string
+  description = "Database username"
+}
+
+variable "db_password" {
+  type        = string
+  description = "Database password"
+  sensitive   = true
+}
+
+variable "db_instance_class" {
+  type        = string
+  description = "RDS instance class"
+}
+
+variable "db_allocated_storage" {
+  type        = number
+  description = "RDS storage in GB"
+}
+
+variable "s3_bucket_name" {
+  type        = string
+  description = "S3 bucket name for document storage; leave empty to auto-generate from project/environment"
+}
+
