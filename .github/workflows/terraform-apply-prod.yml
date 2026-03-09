@@ -1,0 +1,90 @@
+name: Terraform Apply (Prod)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "apply" to confirm production deployment'
+        required: true
+        default: ''
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: 1.6.0
+
+jobs:
+  terraform-apply-prod:
+    name: Terraform Apply (Production)
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: infrastructure/prod
+    
+    permissions:
+      contents: read
+      id-token: write
+    
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "apply" ]; then
+            echo "❌ Confirmation failed. You must type 'apply' to proceed."
+            exit 1
+          fi
+          echo "✅ Confirmation validated"
+      
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Create terraform.tfvars from secrets
+        run: |
+          cat > terraform.tfvars <<EOF
+          vpc_id               = "${{ secrets.TF_VAR_VPC_ID_PROD }}"
+          private_subnet_ids   = ${{ secrets.TF_VAR_PRIVATE_SUBNET_IDS_PROD }}
+          public_subnet_ids    = ${{ secrets.TF_VAR_PUBLIC_SUBNET_IDS_PROD }}
+          allowed_cidr_blocks  = ${{ secrets.TF_VAR_ALLOWED_CIDR_BLOCKS_PROD }}
+          db_password          = "${{ secrets.TF_VAR_DB_PASSWORD_PROD }}"
+          s3_bucket_name       = "${{ secrets.TF_VAR_S3_BUCKET_NAME_PROD }}"
+          aws_region           = "${{ env.AWS_REGION }}"
+          EOF
+      
+      - name: Terraform Init
+        run: terraform init
+      
+      - name: Terraform Plan
+        run: terraform plan -input=false -out=tfplan
+      
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -input=false tfplan
+      
+      - name: Output Infrastructure Details
+        run: terraform output -json > infrastructure-outputs.json
+      
+      - name: Upload Infrastructure Outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: infrastructure-outputs-prod
+          path: infrastructure/prod/infrastructure-outputs.json
+          retention-days: 90
+      
+      - name: Deployment Summary
+        run: |
+          echo "## 🚀 Production Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Infrastructure Outputs" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY
+          cat infrastructure-outputs.json >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
