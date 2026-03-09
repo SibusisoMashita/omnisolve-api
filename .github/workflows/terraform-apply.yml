@@ -41,6 +41,23 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
       
+      - name: Create terraform.tfvars
+        run: |
+          cat > terraform.tfvars <<EOF
+          project_name         = "omnisolve"
+          environment          = "prod"
+          aws_region           = "${{ env.AWS_REGION }}"
+          vpc_id               = "${{ secrets.TF_VAR_VPC_ID }}"
+          private_subnet_ids   = ${{ secrets.TF_VAR_PRIVATE_SUBNET_IDS }}
+          allowed_cidr_blocks  = ${{ secrets.TF_VAR_ALLOWED_CIDR_BLOCKS }}
+          db_name              = "omnisolve"
+          db_username          = "omnisolve"
+          db_password          = "${{ secrets.TF_VAR_DB_PASSWORD }}"
+          db_instance_class    = "db.t3.micro"
+          db_allocated_storage = 20
+          s3_bucket_name       = "${{ secrets.TF_VAR_S3_BUCKET_NAME }}"
+          EOF
+      
       - name: Terraform Init
         run: terraform init
       

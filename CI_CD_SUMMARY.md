@@ -123,11 +123,32 @@ Infrastructure Deployed
 
 Configure these in: `Settings` → `Secrets and variables` → `Actions`
 
+### AWS Credentials
+
 | Secret Name | Description | Used By |
 |-------------|-------------|---------|
 | `AWS_ACCESS_KEY_ID` | AWS IAM access key | Terraform workflows |
 | `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key | Terraform workflows |
+
+### Terraform Variables
+
+| Secret Name | Description | Used By |
+|-------------|-------------|---------|
+| `TF_VAR_VPC_ID` | AWS VPC ID | Terraform workflows |
+| `TF_VAR_PRIVATE_SUBNET_IDS` | Subnet IDs (JSON array) | Terraform workflows |
+| `TF_VAR_ALLOWED_CIDR_BLOCKS` | CIDR blocks (JSON array) | Terraform workflows |
+| `TF_VAR_DB_PASSWORD` | Database password | Terraform workflows |
+| `TF_VAR_S3_BUCKET_NAME` | S3 bucket name | Terraform workflows |
+
+### Docker Registry (Optional)
+
+| Secret Name | Description | Used By |
+|-------------|-------------|---------|
+| `DOCKER_USERNAME` | Docker Hub username | Docker build (if using Docker Hub) |
+| `DOCKER_PASSWORD` | Docker Hub password | Docker build (if using Docker Hub) |
 | `GITHUB_TOKEN` | Auto-generated | Docker build, PR comments |
+
+**Note:** The current setup uses GitHub Container Registry (ghcr.io) which uses `GITHUB_TOKEN` automatically.
 
 ---
 
