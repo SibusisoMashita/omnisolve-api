@@ -35,7 +35,7 @@ jobs:
           cache: maven
       
       - name: Build with Maven
-        run: ./mvnw clean package -DskipTests
+        run: ./mvnw -B package -DskipTests
       
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
@@ -44,6 +44,17 @@ jobs:
           path: target/*.jar
           retention-days: 30
           if-no-files-found: error
+      
+      - name: Upload Maven build cache
+        uses: actions/upload-artifact@v4
+        with:
+          name: maven-build-cache
+          path: |
+            target/classes
+            target/generated-sources
+            target/maven-status
+          retention-days: 1
+          if-no-files-found: warn
 
   # Stage 2: Run tests
   test:
@@ -77,13 +88,20 @@ jobs:
           distribution: ${{ env.JAVA_DISTRIBUTION }}
           cache: maven
       
+      - name: Download Maven build cache
+        uses: actions/download-artifact@v4
+        with:
+          name: maven-build-cache
+          path: target
+        continue-on-error: true
+      
       - name: Run tests
         env:
           DB_URL: jdbc:postgresql://localhost:5432/omnisolve_test
           DB_USERNAME: postgres
           DB_PASSWORD: postgres
           JWT_ENABLED: false
-        run: ./mvnw test
+        run: ./mvnw -B test
 
   # Stage 3: Quality gates
   qodana-scan:
@@ -172,8 +190,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=omnisolve-api
+          cache-to: type=gha,mode=max,scope=omnisolve-api
           platforms: linux/amd64,linux/arm64
 
   # Stage 5: Deploy to DEV
