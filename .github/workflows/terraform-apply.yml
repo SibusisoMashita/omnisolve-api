@@ -1,4 +1,4 @@
-name: Terraform Apply
+name: Terraform Apply (Dev)
 
 on:
   push:
@@ -13,13 +13,13 @@ env:
   TF_VERSION: 1.6.0
 
 jobs:
-  terraform-apply:
-    name: Terraform Apply (Prod)
+  terraform-apply-dev:
+    name: Terraform Apply (Dev)
     runs-on: ubuntu-latest
-    environment: production
+    environment: development
     defaults:
       run:
-        working-directory: infrastructure/prod
+        working-directory: infrastructure/dev
     
     permissions:
       contents: read
@@ -46,9 +46,11 @@ jobs:
           cat > terraform.tfvars <<EOF
           vpc_id               = "${{ secrets.TF_VAR_VPC_ID }}"
           private_subnet_ids   = ${{ secrets.TF_VAR_PRIVATE_SUBNET_IDS }}
+          public_subnet_ids    = ${{ secrets.TF_VAR_PUBLIC_SUBNET_IDS }}
           allowed_cidr_blocks  = ${{ secrets.TF_VAR_ALLOWED_CIDR_BLOCKS }}
           db_password          = "${{ secrets.TF_VAR_DB_PASSWORD }}"
           s3_bucket_name       = "${{ secrets.TF_VAR_S3_BUCKET_NAME }}"
+          aws_region           = "${{ env.AWS_REGION }}"
           EOF
       
       - name: Terraform Init
@@ -66,6 +68,6 @@ jobs:
       - name: Upload Infrastructure Outputs
         uses: actions/upload-artifact@v4
         with:
-          name: infrastructure-outputs
-          path: infrastructure/prod/infrastructure-outputs.json
+          name: infrastructure-outputs-dev
+          path: infrastructure/dev/infrastructure-outputs.json
           retention-days: 30
