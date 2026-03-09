@@ -2,7 +2,10 @@ package com.omnisolve.service.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-public record DocumentTypeRequest(
+public record DocumentTypeResponse(
+        @Schema(description = "Document type ID", example = "1")
+        Long id,
+        
         @Schema(description = "Document type name", example = "Policy")
         String name,
         
@@ -13,4 +16,3 @@ public record DocumentTypeRequest(
         Boolean requiresClauses
 ) {
 }
-

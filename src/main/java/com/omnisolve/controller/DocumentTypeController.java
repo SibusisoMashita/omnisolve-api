@@ -1,8 +1,8 @@
 package com.omnisolve.controller;
 
-import com.omnisolve.domain.DocumentType;
 import com.omnisolve.service.DocumentTypeService;
 import com.omnisolve.service.dto.DocumentTypeRequest;
+import com.omnisolve.service.dto.DocumentTypeResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,20 +31,20 @@ public class DocumentTypeController {
 
     @GetMapping
     @Operation(summary = "List document types")
-    public List<DocumentType> getAll() {
+    public List<DocumentTypeResponse> getAll() {
         return service.list();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create a document type")
-    public DocumentType create(@RequestBody DocumentTypeRequest request) {
+    public DocumentTypeResponse create(@RequestBody DocumentTypeRequest request) {
         return service.create(request);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update a document type")
-    public DocumentType update(@Parameter(description = "Document type id") @PathVariable Long id, @RequestBody DocumentTypeRequest request) {
+    public DocumentTypeResponse update(@Parameter(description = "Document type id") @PathVariable Long id, @RequestBody DocumentTypeRequest request) {
         return service.update(id, request);
     }
 

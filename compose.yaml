@@ -30,7 +30,7 @@ services:
       DB_PASSWORD: admin
       SERVER_PORT: 8080
       AWS_REGION: us-east-1
-      DOCUMENT_BUCKET: omnisolve-documents-local
+      DOCUMENT_BUCKET: dev-omnisolve-documents
       COGNITO_ISSUER_URI: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_example
       COGNITO_AUDIENCE: example-client-id
     ports:

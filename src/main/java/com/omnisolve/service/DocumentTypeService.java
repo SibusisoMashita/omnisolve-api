@@ -3,6 +3,7 @@ package com.omnisolve.service;
 import com.omnisolve.domain.DocumentType;
 import com.omnisolve.repository.DocumentTypeRepository;
 import com.omnisolve.service.dto.DocumentTypeRequest;
+import com.omnisolve.service.dto.DocumentTypeResponse;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,30 +19,43 @@ public class DocumentTypeService {
         this.repository = repository;
     }
 
-    public List<DocumentType> list() {
-        return repository.findAll();
+    public List<DocumentTypeResponse> list() {
+        return repository.findAll().stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional
-    public DocumentType create(DocumentTypeRequest request) {
+    public DocumentTypeResponse create(DocumentTypeRequest request) {
         DocumentType type = new DocumentType();
         type.setName(request.name());
         type.setDescription(request.description());
-        return repository.save(type);
+        type.setRequiresClauses(request.requiresClauses() != null ? request.requiresClauses() : false);
+        return toResponse(repository.save(type));
     }
 
     @Transactional
-    public DocumentType update(Long id, DocumentTypeRequest request) {
+    public DocumentTypeResponse update(Long id, DocumentTypeRequest request) {
         DocumentType type = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Document type not found"));
         type.setName(request.name());
         type.setDescription(request.description());
-        return repository.save(type);
+        type.setRequiresClauses(request.requiresClauses() != null ? request.requiresClauses() : false);
+        return toResponse(repository.save(type));
     }
 
     @Transactional
     public void delete(Long id) {
         repository.deleteById(id);
+    }
+
+    private DocumentTypeResponse toResponse(DocumentType type) {
+        return new DocumentTypeResponse(
+                type.getId(),
+                type.getName(),
+                type.getDescription(),
+                type.getRequiresClauses()
+        );
     }
 }
 

@@ -140,7 +140,7 @@ spring:
 
 app:
   s3:
-    bucket: omnisolve-documents-local
+    bucket: dev-omnisolve-documents
   security:
     jwt:
       enabled: false  # JWT disabled for local development
@@ -174,10 +174,13 @@ export DB_PASSWORD=admin
 
 # S3
 export AWS_REGION=us-east-1
-export DOCUMENT_BUCKET=omnisolve-documents-local
+export DOCUMENT_BUCKET=dev-omnisolve-documents
 
 # Security
 export JWT_ENABLED=false
+
+# CORS (for frontend development)
+export CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
 
 # Run application
 ./mvnw spring-boot:run
@@ -249,7 +252,9 @@ docker-compose down
 **Run Configuration**:
 - Main class: `com.omnisolve.OmnisolveApiApplication`
 - VM options: `-Dspring.profiles.active=local`
-- Environment variables: `JWT_ENABLED=false`
+- Environment variables: 
+  - `JWT_ENABLED=false`
+  - `CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000`
 
 #### VS Code
 
@@ -268,7 +273,8 @@ docker-compose down
   "projectName": "omnisolve-api",
   "env": {
     "SPRING_PROFILES_ACTIVE": "local",
-    "JWT_ENABLED": "false"
+    "JWT_ENABLED": "false",
+    "CORS_ALLOWED_ORIGINS": "http://localhost:5173,http://localhost:3000"
   }
 }
 ```
@@ -487,7 +493,7 @@ pip install localstack
 localstack start
 
 # Create local S3 bucket
-aws --endpoint-url=http://localhost:4566 s3 mb s3://omnisolve-documents-local
+aws --endpoint-url=http://localhost:4566 s3 mb s3://dev-omnisolve-documents
 
 # Configure application
 export AWS_ENDPOINT_URL=http://localhost:4566
@@ -505,7 +511,7 @@ docker run -p 9000:9000 -p 9001:9001 \
   minio/minio server /data --console-address ":9001"
 
 # Access MinIO Console: http://localhost:9001
-# Create bucket: omnisolve-documents-local
+# Create bucket: dev-omnisolve-documents
 ```
 
 ### Option 3: Real AWS S3
@@ -517,11 +523,168 @@ Use a real S3 bucket for local development:
 aws configure
 
 # Create bucket
-aws s3 mb s3://omnisolve-documents-local
+aws s3 mb s3://dev-omnisolve-documents
 
 # Update application configuration
-export DOCUMENT_BUCKET=omnisolve-documents-local
+export DOCUMENT_BUCKET=dev-omnisolve-documents
 ```
+
+---
+
+## CORS Configuration
+
+### Overview
+
+The application includes CORS (Cross-Origin Resource Sharing) support for frontend integration. CORS is configured via `CorsConfig.java` and allows cross-origin requests from specified origins.
+
+### Configuration
+
+CORS settings are controlled by the `CORS_ALLOWED_ORIGINS` environment variable:
+
+**Default (Local)**:
+```yaml
+app:
+  cors:
+    allowed-origins: http://localhost:5173,http://localhost:3000,http://localhost:8080
+```
+
+**Custom Origins**:
+```bash
+export CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:4200
+./mvnw spring-boot:run
+```
+
+### Allowed Configuration
+
+- **Paths**: `/api/**` (all API endpoints)
+- **Methods**: GET, POST, PUT, DELETE, OPTIONS, PATCH
+- **Headers**: All headers allowed (`*`)
+- **Credentials**: Enabled (`allowCredentials: true`)
+- **Max Age**: 3600 seconds (1 hour preflight cache)
+
+### Testing CORS
+
+#### Test Preflight Request
+
+```bash
+curl -X OPTIONS http://localhost:8080/api/documents \
+  -H "Origin: http://localhost:5173" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: Content-Type" \
+  -v
+```
+
+**Expected Response Headers**:
+```
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: http://localhost:5173
+Access-Control-Allow-Methods: GET,POST,PUT,DELETE,OPTIONS,PATCH
+Access-Control-Allow-Headers: *
+Access-Control-Allow-Credentials: true
+Access-Control-Max-Age: 3600
+```
+
+#### Test Actual Request
+
+```bash
+curl -X GET http://localhost:8080/api/health \
+  -H "Origin: http://localhost:5173" \
+  -v
+```
+
+**Expected Response Headers**:
+```
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: http://localhost:5173
+Access-Control-Allow-Credentials: true
+Content-Type: application/json
+```
+
+### Frontend Integration
+
+#### Fetch API
+
+```javascript
+// Fetch with credentials
+fetch('http://localhost:8080/api/documents', {
+  method: 'GET',
+  credentials: 'include',  // Important for cookies/auth
+  headers: {
+    'Content-Type': 'application/json',
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+
+#### Axios
+
+```javascript
+// Configure Axios
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: 'http://localhost:8080',
+  withCredentials: true,  // Important for cookies/auth
+});
+
+// Make request
+api.get('/api/documents')
+  .then(response => console.log(response.data));
+```
+
+### Common Issues
+
+**1. Origin Not Allowed**
+
+Error: `Access to fetch at 'http://localhost:8080/api/documents' from origin 'http://localhost:5173' has been blocked by CORS policy`
+
+Solution: Add your frontend URL to `CORS_ALLOWED_ORIGINS`:
+```bash
+export CORS_ALLOWED_ORIGINS=http://localhost:5173
+```
+
+**2. Credentials Error**
+
+Error: `The value of the 'Access-Control-Allow-Credentials' header in the response is '' which must be 'true'`
+
+Solution: Ensure `withCredentials: true` (Axios) or `credentials: 'include'` (Fetch) is set in frontend.
+
+**3. Preflight Fails**
+
+Error: `Response to preflight request doesn't pass access control check`
+
+Solution: 
+- Verify OPTIONS method is allowed
+- Check `Access-Control-Request-Headers` matches allowed headers
+- Ensure origin is in allowed origins list
+
+### Production Configuration
+
+For production, set specific frontend URLs:
+
+**DEV Environment**:
+```bash
+export CORS_ALLOWED_ORIGINS=https://dev-app.example.com
+```
+
+**PROD Environment**:
+```bash
+export CORS_ALLOWED_ORIGINS=https://app.example.com
+```
+
+**Multiple Origins**:
+```bash
+export CORS_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
+```
+
+### Security Considerations
+
+- Never use wildcard (`*`) origins in production
+- Always specify exact origins
+- Keep `allowCredentials: true` for authenticated requests
+- Use HTTPS in production
+- Limit allowed methods to what's actually needed
 
 ---
 

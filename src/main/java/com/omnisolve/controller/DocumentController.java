@@ -3,7 +3,11 @@ package com.omnisolve.controller;
 import com.omnisolve.service.DocumentService;
 import com.omnisolve.service.dto.DocumentRequest;
 import com.omnisolve.service.dto.DocumentResponse;
+import com.omnisolve.service.dto.DocumentStatsResponse;
 import com.omnisolve.service.dto.DocumentVersionResponse;
+import com.omnisolve.service.dto.DocumentAttentionResponse;
+import com.omnisolve.service.dto.DocumentWorkflowStatsResponse;
+import com.omnisolve.service.dto.UpcomingReviewResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -20,6 +24,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,6 +47,45 @@ public class DocumentController {
         return documentService.listDocuments();
     }
 
+    @GetMapping("/stats")
+    @Operation(summary = "Get document statistics for dashboard")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Statistics retrieved successfully")
+    })
+    public DocumentStatsResponse getStats() {
+        return documentService.getStats();
+    }
+
+    @GetMapping("/attention")
+    @Operation(summary = "Get documents requiring attention")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Attention items retrieved successfully")
+    })
+    public DocumentAttentionResponse getAttention() {
+        return documentService.getAttention();
+    }
+
+    @GetMapping("/reviews/upcoming")
+    @Operation(summary = "Get documents with upcoming review dates")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Upcoming reviews retrieved successfully")
+    })
+    public List<UpcomingReviewResponse> getUpcomingReviews(
+            @Parameter(description = "Number of days to look ahead")
+            @RequestParam(defaultValue = "30") int days
+    ) {
+        return documentService.getUpcomingReviews(days);
+    }
+
+    @GetMapping("/workflow")
+    @Operation(summary = "Get workflow distribution statistics")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Workflow statistics retrieved successfully")
+    })
+    public DocumentWorkflowStatsResponse getWorkflowStats() {
+        return documentService.getWorkflowStats();
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Get a document by id")
     public DocumentResponse getById(@Parameter(description = "Document UUID") @PathVariable UUID id) {
@@ -52,7 +96,7 @@ public class DocumentController {
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create a document")
     public DocumentResponse create(@RequestBody DocumentRequest request) {
-        return documentService.create(request, "test-user");
+        return documentService.create(request, request.createdBy() != null ? request.createdBy() : "test-user");
     }
 
     @PutMapping("/{id}")
@@ -61,7 +105,7 @@ public class DocumentController {
             @Parameter(description = "Document UUID") @PathVariable UUID id,
             @RequestBody DocumentRequest request
     ) {
-        return documentService.update(id, request, "test-user");
+        return documentService.update(id, request, request.createdBy() != null ? request.createdBy() : "test-user");
     }
 
     @PostMapping("/{id}/submit")
@@ -100,5 +144,17 @@ public class DocumentController {
             @Parameter(description = "Document file payload") @RequestPart("file") MultipartFile file
     ) {
         return documentService.uploadVersion(id, file, "test-user");
+    }
+
+    @GetMapping("/{id}/versions")
+    @Operation(summary = "Get all versions for a document")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Versions retrieved successfully"),
+            @ApiResponse(responseCode = "404", description = "Document not found", content = @Content(schema = @Schema(hidden = true)))
+    })
+    public List<DocumentVersionResponse> getVersions(
+            @Parameter(description = "Document UUID") @PathVariable UUID id
+    ) {
+        return documentService.getDocumentVersions(id);
     }
 }

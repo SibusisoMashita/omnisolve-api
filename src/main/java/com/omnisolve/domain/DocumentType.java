@@ -21,6 +21,9 @@ public class DocumentType {
     @Column(length = 255)
     private String description;
 
+    @Column(name = "requires_clauses", nullable = false)
+    private Boolean requiresClauses = false;
+
     public Long getId() {
         return id;
     }
@@ -40,5 +43,14 @@ public class DocumentType {
     public void setDescription(String description) {
         this.description = description;
     }
+
+    public Boolean getRequiresClauses() {
+        return requiresClauses;
+    }
+
+    public void setRequiresClauses(Boolean requiresClauses) {
+        this.requiresClauses = requiresClauses;
+    }
 }
+
 

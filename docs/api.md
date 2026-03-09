@@ -486,6 +486,19 @@ Future versions may use: `/api/v2/`, `/api/v3/`, etc.
 
 CORS configuration should be set up based on your frontend domain requirements.
 
+## Frontend Integration
+
+The API is designed to work with a frontend application running on `http://localhost:5173` (Vite dev server).
+
+### Frontend Route Mapping
+
+| Frontend Route | API Endpoint | Description |
+|---------------|--------------|-------------|
+| `/documents` | `GET /api/documents` | List all documents |
+| `/documents/:id` | `GET /api/documents/:id` | View document details |
+
+**Note:** The frontend uses `/documents` (not `/documents/all`) for the document list view.
+
 ## Best Practices
 
 1. **Always include JWT token** in the Authorization header (except for health check)

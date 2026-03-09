@@ -5,12 +5,15 @@ INSERT INTO document_statuses (name) VALUES
     ('Superseded'),
     ('Archived');
 
-INSERT INTO document_types (name, description) VALUES
-    ('Policy', 'High-level management intentions and rules'),
-    ('Procedure', 'Detailed steps to execute a process'),
-    ('Work Instruction', 'Task-level operational instruction'),
-    ('Form', 'Template used to capture records'),
-    ('Record', 'Evidence of performed activities');
+INSERT INTO document_types (name, description, requires_clauses)
+VALUES
+    ('Policy', 'High-level management policies', true),
+    ('Procedure', 'Step-by-step operational procedures', true),
+    ('Manual', 'Management system manuals', true),
+    ('Work Instruction', 'Detailed task instructions', true),
+    ('Form', 'Operational forms', false),
+    ('Record', 'Evidence records', false),
+    ('Checklist', 'Operational checklists', false);
 
 INSERT INTO departments (name, description) VALUES
     ('Operations', 'Operational controls and procedures'),

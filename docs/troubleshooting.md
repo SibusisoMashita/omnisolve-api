@@ -523,31 +523,131 @@ aws cognito-idp list-user-pool-clients --user-pool-id us-east-1_xxxxx
 
 #### Solutions
 
-**1. Configure CORS**
+**1. Configure CORS (Already Implemented)**
 
-Add CORS configuration:
+The application includes CORS configuration in `CorsConfig.java`:
+
 ```java
 @Configuration
-public class WebConfig implements WebMvcConfigurer {
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/api/**")
-                .allowedOrigins("http://localhost:3000")
-                .allowedMethods("GET", "POST", "PUT", "DELETE")
-                .allowedHeaders("*")
-                .allowCredentials(true);
+public class CorsConfig {
+    @Value("${app.cors.allowed-origins}")
+    private String allowedOrigins;
+
+    @Bean
+    public WebMvcConfigurer corsConfigurer() {
+        return new WebMvcConfigurer() {
+            @Override
+            public void addCorsMappings(CorsRegistry registry) {
+                registry.addMapping("/api/**")
+                        .allowedOrigins(allowedOrigins.split(","))
+                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
+                        .allowedHeaders("*")
+                        .allowCredentials(true)
+                        .maxAge(3600);
+            }
+        };
     }
 }
 ```
 
-**2. Check Preflight Requests**
+**2. Configure Allowed Origins**
+
+Set the `CORS_ALLOWED_ORIGINS` environment variable:
+
+**Local Development**:
+```bash
+export CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+./mvnw spring-boot:run
+```
+
+**Docker Compose**:
+```yaml
+environment:
+  CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:3000
+```
+
+**Production (Elastic Beanstalk)**:
+```bash
+# Via AWS CLI
+aws elasticbeanstalk update-environment \
+  --environment-name prod-omnisolve-api \
+  --option-settings \
+    Namespace=aws:elasticbeanstalk:application:environment,\
+    OptionName=CORS_ALLOWED_ORIGINS,\
+    Value=https://app.example.com
+
+# Or via Terraform
+setting {
+  namespace = "aws:elasticbeanstalk:application:environment"
+  name      = "CORS_ALLOWED_ORIGINS"
+  value     = "https://app.example.com"
+}
+```
+
+**3. Check Preflight Requests**
 
 ```bash
 # Test preflight
 curl -X OPTIONS http://localhost:8080/api/documents \
-  -H "Origin: http://localhost:3000" \
-  -H "Access-Control-Request-Method: POST"
+  -H "Origin: http://localhost:5173" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: Content-Type" \
+  -v
+
+# Expected response headers:
+# Access-Control-Allow-Origin: http://localhost:5173
+# Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH
+# Access-Control-Allow-Headers: *
+# Access-Control-Allow-Credentials: true
+# Access-Control-Max-Age: 3600
 ```
+
+**4. Verify Configuration**
+
+Check application logs for CORS configuration:
+```bash
+# Local
+./mvnw spring-boot:run | grep -i cors
+
+# Docker
+docker-compose logs api | grep -i cors
+```
+
+**5. Common CORS Issues**
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Origin not allowed | Frontend URL not in allowed origins | Add to `CORS_ALLOWED_ORIGINS` |
+| Credentials error | `allowCredentials` mismatch | Ensure both frontend and backend allow credentials |
+| Method not allowed | HTTP method not in allowed methods | Add method to `allowedMethods` |
+| Header not allowed | Custom header not allowed | Verify `allowedHeaders: "*"` is set |
+| Preflight fails | OPTIONS request blocked | Ensure OPTIONS is in allowed methods |
+
+**6. Browser DevTools Debugging**
+
+Open browser DevTools (F12) → Network tab:
+1. Look for OPTIONS preflight request
+2. Check request headers (Origin, Access-Control-Request-Method)
+3. Check response headers (Access-Control-Allow-*)
+4. Verify status code (200 for preflight, not 403/401)
+
+**7. Multiple Origins**
+
+For multiple frontend URLs (dev, staging, prod):
+```bash
+# Comma-separated list
+export CORS_ALLOWED_ORIGINS=http://localhost:5173,https://dev.example.com,https://app.example.com
+```
+
+**8. Wildcard Origins (Not Recommended for Production)**
+
+For development only:
+```java
+.allowedOrigins("*")  // Allows all origins (insecure)
+.allowCredentials(false)  // Must be false with wildcard
+```
+
+**Note**: Wildcard origins (`*`) cannot be used with `allowCredentials(true)`. Use explicit origins for production.
 
 ---
 

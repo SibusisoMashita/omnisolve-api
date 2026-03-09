@@ -5,6 +5,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
 CREATE TABLE document_types (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
+    requires_clauses BOOLEAN NOT NULL DEFAULT FALSE,
     description VARCHAR(255)
 );
 
