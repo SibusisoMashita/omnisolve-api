@@ -54,3 +54,26 @@ variable "s3_bucket_name" {
   description = "S3 bucket name for document storage; leave empty to auto-generate from project/environment"
 }
 
+variable "public_subnet_ids" {
+  type        = list(string)
+  description = "Public subnet IDs for Elastic Beanstalk instances"
+}
+
+variable "aws_region" {
+  type        = string
+  description = "AWS region for deployment"
+  default     = "us-east-1"
+}
+
+variable "beanstalk_solution_stack" {
+  type        = string
+  description = "Elastic Beanstalk solution stack name"
+  default     = "64bit Amazon Linux 2023 v4.9.0 running Corretto 21"
+}
+
+variable "beanstalk_instance_type" {
+  type        = string
+  description = "EC2 instance type for Elastic Beanstalk"
+  default     = "t3.micro"
+}
+

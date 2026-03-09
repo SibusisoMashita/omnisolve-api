@@ -28,6 +28,7 @@ module "omnisolve" {
   environment          = "prod"
   vpc_id               = var.vpc_id
   private_subnet_ids   = var.private_subnet_ids
+  public_subnet_ids    = var.public_subnet_ids
   allowed_cidr_blocks  = var.allowed_cidr_blocks
   db_name              = "omnisolve"
   db_username          = "omnisolve"
@@ -35,5 +36,6 @@ module "omnisolve" {
   db_instance_class    = "db.t3.micro"
   db_allocated_storage = 20
   s3_bucket_name       = var.s3_bucket_name
+  aws_region           = var.aws_region
 }
 
