@@ -41,9 +41,9 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
       
-      - name: Create terraform.tfvars
+      - name: Create prod.tfvars from secrets
         run: |
-          cat > terraform.tfvars <<EOF
+          cat > ../environments/prod.tfvars <<EOF
           project_name         = "omnisolve"
           environment          = "prod"
           aws_region           = "${{ env.AWS_REGION }}"
@@ -62,7 +62,7 @@ jobs:
         run: terraform init
       
       - name: Terraform Plan
-        run: terraform plan -input=false -out=tfplan
+        run: terraform plan -var-file=../environments/prod.tfvars -input=false -out=tfplan
       
       - name: Terraform Apply
         run: terraform apply -auto-approve -input=false tfplan

@@ -14,7 +14,7 @@ terraform {
 
   backend "s3" {
     bucket         = "omnisolve-terraform-state"
-    key            = "backend/dev/terraform.tfstate"
+    key            = "infra/terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "omnisolve-terraform-lock"
     encrypt        = true
@@ -26,7 +26,7 @@ provider "aws" {
 }
 
 locals {
-  name_prefix = "${var.project_name}-${var.environment}"
+  name_prefix = "${var.environment}-${var.project_name}"
   common_tags = {
     Project     = var.project_name
     Environment = var.environment

@@ -31,6 +31,7 @@ Thumbs.db
 *.tfstate.*
 *.tfvars
 !terraform.tfvars.example
+!infrastructure/environments/dev.tfvars
 crash.log
 crash.*.log
 override.tf
