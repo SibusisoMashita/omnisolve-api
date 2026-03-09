@@ -1,0 +1,14 @@
+project_name         = "omnisolve"
+environment          = "dev"
+aws_region           = "us-east-1"
+
+vpc_id               = "vpc-0123456789abcdef0"
+private_subnet_ids   = ["subnet-0123456789abcdef0", "subnet-0fedcba9876543210"]
+allowed_cidr_blocks  = ["10.0.0.0/16"]
+
+db_name              = "omnisolve"
+db_username          = "omnisolve"
+db_password          = "replace-me-with-secure-password"
+db_instance_class    = "db.t4g.micro"
+db_allocated_storage = 20
+s3_bucket_name       = "omnisolve-documents-dev"

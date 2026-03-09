@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: omnisolve-postgres
+    environment:
+      POSTGRES_DB: omnisolve
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d omnisolve"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: omnisolve-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_URL: jdbc:postgresql://postgres:5432/omnisolve
+      DB_USERNAME: postgres
+      DB_PASSWORD: admin
+      SERVER_PORT: 8080
+      AWS_REGION: us-east-1
+      DOCUMENT_BUCKET: omnisolve-documents-local
+      JWT_ENABLED: false
+      COGNITO_ISSUER_URI: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_example
+      COGNITO_AUDIENCE: example-client-id
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:
+
