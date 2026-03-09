@@ -13,7 +13,7 @@
 
     <groupId>com.omnisolve</groupId>
     <artifactId>omnisolve-api</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.1</version>
     <name>omnisolve-api</name>
     <description>OmniSolve backend for document control</description>
 
