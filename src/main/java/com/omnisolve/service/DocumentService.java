@@ -68,89 +68,141 @@ public class DocumentService {
     }
 
     @Transactional(readOnly = true)
-    public List<DocumentResponse> listDocuments() {
-        return documentRepository.findAll().stream()
-                .map(this::toResponse)
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public DocumentResponse getDocument(UUID id) {
-        return toResponse(findDocument(id));
-    }
-
-    @Transactional(readOnly = true)
-    public DocumentStatsResponse getStats() {
-        long total = documentRepository.count();
-        long active = documentRepository.countByStatus(findStatus(STATUS_ACTIVE));
-        long pending = documentRepository.countByStatus(findStatus(STATUS_PENDING_APPROVAL));
-        long draft = documentRepository.countByStatus(findStatus(STATUS_DRAFT));
-        long archived = documentRepository.countByStatus(findStatus(STATUS_ARCHIVED));
-        long reviewDue = documentRepository.countReviewDue(OffsetDateTime.now());
-
-        return new DocumentStatsResponse(total, active, pending, reviewDue, draft, archived);
-    }
-
-    @Transactional
-    public DocumentResponse create(DocumentRequest request, String userId) {
-        DocumentType type = documentTypeRepository.findById(request.typeId())
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Document type not found"));
-        Department department = departmentRepository.findById(request.departmentId())
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Department not found"));
-
-        // Validate clauses requirement
-        if (type.getRequiresClauses() && (request.clauseIds() == null || request.clauseIds().isEmpty())) {
-            throw new ResponseStatusException(BAD_REQUEST, 
-                    "Document type '" + type.getName() + "' requires at least one clause to be linked");
+        public List<DocumentResponse> listDocuments() {
+            log.info("Fetching all documents");
+            List<DocumentResponse> documents = documentRepository.findAll().stream()
+                    .map(this::toResponse)
+                    .toList();
+            log.info("Retrieved {} documents", documents.size());
+            return documents;
         }
 
-        // Generate document number
-        String documentNumber = generateDocumentNumber(type);
+    @Transactional(readOnly = true)
+        public DocumentResponse getDocument(UUID id) {
+            log.info("Fetching document: id={}", id);
+            DocumentResponse response = toResponse(findDocument(id));
+            log.info("Document retrieved: id={}, documentNumber={}, status={}", 
+                    id, response.documentNumber(), response.documentNumber());
+            return response;
+        }
 
-        Document document = new Document();
-        document.setDocumentNumber(documentNumber);
-        document.setTitle(request.title());
-        document.setSummary(request.summary());
-        document.setType(type);
-        document.setDepartment(department);
-        document.setOwnerId(request.ownerId());
-        document.setStatus(findStatus(STATUS_DRAFT));
-        document.setCreatedBy(request.createdBy() != null ? request.createdBy() : userId);
-        document.setUpdatedBy(userId);
-        document.setNextReviewAt(request.nextReviewAt());
+    @Transactional(readOnly = true)
+        public DocumentStatsResponse getStats() {
+            log.info("Calculating document statistics");
+            long total = documentRepository.count();
+            long active = documentRepository.countByStatus(findStatus(STATUS_ACTIVE));
+            long pending = documentRepository.countByStatus(findStatus(STATUS_PENDING_APPROVAL));
+            long draft = documentRepository.countByStatus(findStatus(STATUS_DRAFT));
+            long archived = documentRepository.countByStatus(findStatus(STATUS_ARCHIVED));
+            long reviewDue = documentRepository.countReviewDue(OffsetDateTime.now());
 
-        OffsetDateTime now = OffsetDateTime.now();
-        document.setCreatedAt(now);
-        document.setUpdatedAt(now);
+            log.info("Document stats: total={}, active={}, pending={}, draft={}, archived={}, reviewDue={}", 
+                    total, active, pending, draft, archived, reviewDue);
+            return new DocumentStatsResponse(total, active, pending, reviewDue, draft, archived);
+        }
 
-        return toResponse(documentRepository.save(document));
-    }
+    @Transactional
+        public DocumentResponse create(DocumentRequest request, String userId) {
+            log.info("Creating document: title={}, typeId={}, departmentId={}, ownerId={}, user={}", 
+                    request.title(), request.typeId(), request.departmentId(), request.ownerId(), userId);
+
+            try {
+                DocumentType type = documentTypeRepository.findById(request.typeId())
+                        .orElseThrow(() -> {
+                            log.warn("Document type not found: typeId={}", request.typeId());
+                            return new ResponseStatusException(NOT_FOUND, "Document type not found");
+                        });
+                Department department = departmentRepository.findById(request.departmentId())
+                        .orElseThrow(() -> {
+                            log.warn("Department not found: departmentId={}", request.departmentId());
+                            return new ResponseStatusException(NOT_FOUND, "Department not found");
+                        });
+
+                // Validate clauses requirement
+                if (type.getRequiresClauses() && (request.clauseIds() == null || request.clauseIds().isEmpty())) {
+                    log.warn("Clauses required but not provided: typeId={}, typeName={}", type.getId(), type.getName());
+                    throw new ResponseStatusException(BAD_REQUEST, 
+                            "Document type '" + type.getName() + "' requires at least one clause to be linked");
+                }
+
+                // Generate document number
+                String documentNumber = generateDocumentNumber(type);
+                log.info("Generated document number: {}", documentNumber);
+
+                Document document = new Document();
+                document.setDocumentNumber(documentNumber);
+                document.setTitle(request.title());
+                document.setSummary(request.summary());
+                document.setType(type);
+                document.setDepartment(department);
+                document.setOwnerId(request.ownerId());
+                document.setStatus(findStatus(STATUS_DRAFT));
+                document.setCreatedBy(request.createdBy() != null ? request.createdBy() : userId);
+                document.setUpdatedBy(userId);
+                document.setNextReviewAt(request.nextReviewAt());
+
+                OffsetDateTime now = OffsetDateTime.now();
+                document.setCreatedAt(now);
+                document.setUpdatedAt(now);
+
+                Document saved = documentRepository.save(document);
+                log.info("Document created successfully: id={}, documentNumber={}, status={}", 
+                        saved.getId(), saved.getDocumentNumber(), saved.getStatus().getName());
+                return toResponse(saved);
+            } catch (ResponseStatusException e) {
+                throw e;
+            } catch (Exception e) {
+                log.error("Failed to create document: title={}, error={}", request.title(), e.getMessage(), e);
+                throw e;
+            }
+        }
 
     @Transactional
     public DocumentResponse update(UUID id, DocumentRequest request, String userId) {
-        Document document = findDocument(id);
-        DocumentType type = documentTypeRepository.findById(request.typeId())
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Document type not found"));
-        Department department = departmentRepository.findById(request.departmentId())
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Department not found"));
+        log.info("Updating document: id={}, title={}, typeId={}, departmentId={}, user={}", 
+                id, request.title(), request.typeId(), request.departmentId(), userId);
+        
+        try {
+            Document document = findDocument(id);
+            DocumentType type = documentTypeRepository.findById(request.typeId())
+                    .orElseThrow(() -> {
+                        log.warn("Document type not found: typeId={}", request.typeId());
+                        return new ResponseStatusException(NOT_FOUND, "Document type not found");
+                    });
+            Department department = departmentRepository.findById(request.departmentId())
+                    .orElseThrow(() -> {
+                        log.warn("Department not found: departmentId={}", request.departmentId());
+                        return new ResponseStatusException(NOT_FOUND, "Department not found");
+                    });
 
-        // Validate clauses requirement
-        if (type.getRequiresClauses() && (request.clauseIds() == null || request.clauseIds().isEmpty())) {
-            throw new ResponseStatusException(BAD_REQUEST, 
-                    "Document type '" + type.getName() + "' requires at least one clause to be linked");
+            // Validate clauses requirement
+            if (type.getRequiresClauses() && (request.clauseIds() == null || request.clauseIds().isEmpty())) {
+                log.warn("Clauses required but not provided: documentId={}, typeId={}, typeName={}", 
+                        id, type.getId(), type.getName());
+                throw new ResponseStatusException(BAD_REQUEST, 
+                        "Document type '" + type.getName() + "' requires at least one clause to be linked");
+            }
+
+            // Note: documentNumber is not updated - it's auto-generated and immutable
+            document.setTitle(request.title());
+            document.setSummary(request.summary());
+            document.setType(type);
+            document.setDepartment(department);
+            document.setOwnerId(request.ownerId());
+            document.setNextReviewAt(request.nextReviewAt());
+            document.setUpdatedBy(userId);
+            document.setUpdatedAt(OffsetDateTime.now());
+
+            Document saved = documentRepository.save(document);
+            log.info("Document updated successfully: id={}, documentNumber={}, status={}", 
+                    saved.getId(), saved.getDocumentNumber(), saved.getStatus().getName());
+            return toResponse(saved);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to update document: id={}, error={}", id, e.getMessage(), e);
+            throw e;
         }
-
-        // Note: documentNumber is not updated - it's auto-generated and immutable
-        document.setTitle(request.title());
-        document.setSummary(request.summary());
-        document.setType(type);
-        document.setDepartment(department);
-        document.setOwnerId(request.ownerId());
-        document.setNextReviewAt(request.nextReviewAt());
-        document.setUpdatedBy(userId);
-        document.setUpdatedAt(OffsetDateTime.now());
-
-        return toResponse(documentRepository.save(document));
     }
 
     @Transactional
@@ -391,16 +443,35 @@ public class DocumentService {
     }
 
     private DocumentResponse transition(UUID id, String expectedCurrent, String target, String userId) {
-        Document document = findDocument(id);
-        if (!document.getStatus().getName().equals(expectedCurrent)) {
-            throw new ResponseStatusException(BAD_REQUEST,
-                    "Invalid state transition from " + document.getStatus().getName() + " to " + target);
-        }
+        log.info("Transitioning document: id={}, expectedStatus={}, targetStatus={}, user={}", 
+                id, expectedCurrent, target, userId);
+        
+        try {
+            Document document = findDocument(id);
+            String currentStatus = document.getStatus().getName();
+            
+            if (!currentStatus.equals(expectedCurrent)) {
+                log.warn("Invalid state transition: documentId={}, currentStatus={}, expectedStatus={}, targetStatus={}", 
+                        id, currentStatus, expectedCurrent, target);
+                throw new ResponseStatusException(BAD_REQUEST,
+                        "Invalid state transition from " + currentStatus + " to " + target);
+            }
 
-        document.setStatus(findStatus(target));
-        document.setUpdatedBy(userId);
-        document.setUpdatedAt(OffsetDateTime.now());
-        return toResponse(documentRepository.save(document));
+            document.setStatus(findStatus(target));
+            document.setUpdatedBy(userId);
+            document.setUpdatedAt(OffsetDateTime.now());
+            Document saved = documentRepository.save(document);
+            
+            log.info("Document transitioned successfully: id={}, documentNumber={}, oldStatus={}, newStatus={}", 
+                    saved.getId(), saved.getDocumentNumber(), expectedCurrent, target);
+            return toResponse(saved);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to transition document: id={}, targetStatus={}, error={}", 
+                    id, target, e.getMessage(), e);
+            throw e;
+        }
     }
 
     private Document findDocument(UUID id) {

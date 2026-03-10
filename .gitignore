@@ -59,3 +59,8 @@ logs/
 application-local.yml
 application-dev.yml
 application-prod.yml
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
