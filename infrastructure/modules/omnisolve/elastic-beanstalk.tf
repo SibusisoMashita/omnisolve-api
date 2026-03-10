@@ -48,6 +48,14 @@ resource "aws_security_group" "beanstalk" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Allow HTTPS traffic
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   # Allow all outbound traffic
   egress {
     from_port   = 0
@@ -198,17 +206,53 @@ resource "aws_elastic_beanstalk_environment" "api" {
     value     = aws_security_group.beanstalk.id
   }
 
-  # Environment type - single instance
+  # Environment type - single instance or load balanced
   setting {
     namespace = "aws:elasticbeanstalk:environment"
     name      = "EnvironmentType"
-    value     = "SingleInstance"
+    value     = var.enable_https ? "LoadBalanced" : "SingleInstance"
   }
 
   setting {
     namespace = "aws:elasticbeanstalk:environment"
     name      = "ServiceRole"
     value     = aws_iam_role.beanstalk_service.arn
+  }
+
+  # Load balancer configuration (only applies when LoadBalanced)
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "LoadBalancerType"
+    value     = var.enable_https ? "application" : "classic"
+  }
+
+  # HTTPS Listener (only when certificate is provided)
+  dynamic "setting" {
+    for_each = var.enable_https && var.ssl_certificate_arn != "" ? [1] : []
+    content {
+      namespace = "aws:elbv2:listener:443"
+      name      = "Protocol"
+      value     = "HTTPS"
+    }
+  }
+
+  dynamic "setting" {
+    for_each = var.enable_https && var.ssl_certificate_arn != "" ? [1] : []
+    content {
+      namespace = "aws:elbv2:listener:443"
+      name      = "SSLCertificateArns"
+      value     = var.ssl_certificate_arn
+    }
+  }
+
+  # HTTP to HTTPS redirect (optional)
+  dynamic "setting" {
+    for_each = var.enable_https && var.ssl_certificate_arn != "" ? [1] : []
+    content {
+      namespace = "aws:elbv2:listener:80"
+      name      = "Protocol"
+      value     = "HTTP"
+    }
   }
 
   # VPC configuration

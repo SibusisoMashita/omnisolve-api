@@ -37,5 +37,8 @@ module "omnisolve" {
   db_allocated_storage = 20
   s3_bucket_name       = var.s3_bucket_name
   aws_region           = var.aws_region
+  enable_https         = var.enable_https
+  ssl_certificate_arn  = var.ssl_certificate_arn
+  enable_cloudfront    = var.enable_cloudfront
 }
 
