@@ -77,3 +77,21 @@ variable "beanstalk_instance_type" {
   default     = "t3.micro"
 }
 
+variable "ssl_certificate_arn" {
+  type        = string
+  description = "ARN of SSL certificate in ACM for HTTPS (optional - if not provided, only HTTP will be enabled)"
+  default     = ""
+}
+
+variable "enable_https" {
+  type        = bool
+  description = "Enable HTTPS with load balancer (requires ssl_certificate_arn)"
+  default     = false
+}
+
+variable "enable_cloudfront" {
+  type        = bool
+  description = "Enable CloudFront for HTTPS (alternative to load balancer, no custom domain needed)"
+  default     = false
+}
+

@@ -6,3 +6,15 @@ db_password          = "CHANGE_ME_PROD_PASSWORD"
 s3_bucket_name       = "prod-omnisolve-documents"
 aws_region           = "us-east-1"
 
+# HTTPS Configuration
+# Set to true to enable HTTPS with Application Load Balancer
+enable_https = true
+
+# SSL Certificate ARN from AWS Certificate Manager (ACM)
+# To create a certificate:
+# 1. Go to AWS Certificate Manager in us-east-1
+# 2. Request a public certificate for your domain (e.g., api.yourdomain.com)
+# 3. Validate domain ownership (DNS or email)
+# 4. Copy the certificate ARN here
+ssl_certificate_arn = "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERTIFICATE_ID"
+

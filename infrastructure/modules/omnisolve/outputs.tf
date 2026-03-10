@@ -34,8 +34,13 @@ output "beanstalk_environment_name" {
 }
 
 output "beanstalk_environment_url" {
-  value       = "http://${aws_elastic_beanstalk_environment.api.cname}"
-  description = "Elastic Beanstalk environment URL"
+  value       = var.enable_cloudfront && length(aws_cloudfront_distribution.api) > 0 ? "https://${aws_cloudfront_distribution.api[0].domain_name}" : (var.enable_https ? "https://${aws_elastic_beanstalk_environment.api.cname}" : "http://${aws_elastic_beanstalk_environment.api.cname}")
+  description = "Elastic Beanstalk environment URL (with CloudFront or direct)"
+}
+
+output "cloudfront_domain_name" {
+  value       = var.enable_cloudfront && length(aws_cloudfront_distribution.api) > 0 ? aws_cloudfront_distribution.api[0].domain_name : null
+  description = "CloudFront distribution domain name (if enabled)"
 }
 
 output "beanstalk_cname" {

@@ -35,3 +35,21 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "ssl_certificate_arn" {
+  type        = string
+  description = "ARN of SSL certificate in ACM for HTTPS"
+  default     = ""
+}
+
+variable "enable_https" {
+  type        = bool
+  description = "Enable HTTPS with load balancer"
+  default     = false
+}
+
+variable "enable_cloudfront" {
+  type        = bool
+  description = "Enable CloudFront for HTTPS (no custom domain needed)"
+  default     = false
+}
+
