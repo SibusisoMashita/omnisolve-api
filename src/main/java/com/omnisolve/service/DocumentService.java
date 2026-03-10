@@ -25,6 +25,8 @@ import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -34,6 +36,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class DocumentService {
+
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
 
     private static final String STATUS_DRAFT = "Draft";
     private static final String STATUS_PENDING_APPROVAL = "Pending Approval";
@@ -170,98 +174,139 @@ public class DocumentService {
     }
 
     @Transactional
-    public DocumentVersionResponse uploadVersion(UUID documentId, MultipartFile file, String userId) {
-        // Validate file is not empty
-        if (file.isEmpty()) {
-            throw new ResponseStatusException(BAD_REQUEST, "File cannot be empty");
+        public DocumentVersionResponse uploadVersion(UUID documentId, MultipartFile file, String userId) {
+            // Log request received
+            log.info("Upload request received: documentId={}, filename={}, size={}, contentType={}, user={}", 
+                    documentId, 
+                    file.getOriginalFilename(), 
+                    file.getSize(), 
+                    file.getContentType(),
+                    userId);
+
+            try {
+                // Validate file is not empty
+                if (file.isEmpty()) {
+                    log.warn("Upload validation failed: empty file - documentId={}, filename={}", 
+                            documentId, file.getOriginalFilename());
+                    throw new ResponseStatusException(BAD_REQUEST, "File cannot be empty");
+                }
+
+                // Validate document exists and get status
+                log.info("Looking up document: documentId={}", documentId);
+                Document document = findDocument(documentId);
+                String statusName = document.getStatus().getName();
+                log.info("Document lookup success: documentId={}, status={}, documentNumber={}", 
+                        documentId, statusName, document.getDocumentNumber());
+
+                // Validate document status allows upload
+                if (!STATUS_DRAFT.equals(statusName) && !STATUS_ACTIVE.equals(statusName)) {
+                    log.warn("Upload validation failed: invalid status - documentId={}, status={}, allowedStatuses=[Draft, Active]", 
+                            documentId, statusName);
+                    throw new ResponseStatusException(BAD_REQUEST, 
+                            "Cannot upload version. Document status must be Draft or Active. Current status: " + statusName);
+                }
+
+                // Validate file size (50 MB limit)
+                long maxFileSize = 50 * 1024 * 1024; // 50 MB
+                if (file.getSize() > maxFileSize) {
+                    log.warn("Upload validation failed: file too large - documentId={}, fileSize={}, maxSize={}", 
+                            documentId, file.getSize(), maxFileSize);
+                    throw new ResponseStatusException(BAD_REQUEST, 
+                            "File size exceeds maximum allowed size of 50 MB");
+                }
+
+                // Validate file type
+                String contentType = file.getContentType();
+                List<String> allowedMimeTypes = List.of(
+                        "application/pdf",
+                        "application/msword",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/vnd.ms-excel",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "application/vnd.ms-powerpoint",
+                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        "text/plain",
+                        "text/csv",
+                        "text/markdown",
+                        "application/rtf",
+                        "application/vnd.oasis.opendocument.text",
+                        "application/vnd.oasis.opendocument.spreadsheet",
+                        "application/vnd.oasis.opendocument.presentation",
+                        "application/json",
+                        "application/xml",
+                        "image/png",
+                        "image/jpeg",
+                        "image/gif"
+                );
+
+                if (contentType == null || !allowedMimeTypes.contains(contentType)) {
+                    log.warn("Upload validation failed: invalid content type - documentId={}, contentType={}", 
+                            documentId, contentType != null ? contentType : "null");
+                    throw new ResponseStatusException(BAD_REQUEST,
+                            "File type not allowed. Supported common types include PDF, Word, Excel, PowerPoint, text, CSV, markdown, JSON, XML, and common images. Received: " +
+                            (contentType != null ? contentType : "unknown"));
+                }
+
+                // Generate next version number
+                int nextVersion = documentVersionRepository.findTopByDocumentOrderByVersionNumberDesc(document)
+                        .map(version -> version.getVersionNumber() + 1)
+                        .orElse(1);
+
+                log.info("Generated version number: documentId={}, version={}", documentId, nextVersion);
+
+                String safeFileName = file.getOriginalFilename() == null ? "document.bin" : file.getOriginalFilename();
+                String s3Key = "documents/" + documentId + "/v" + nextVersion + "/" + safeFileName;
+
+                // Upload to S3
+                log.info("Uploading file to storage: documentId={}, s3Key={}, size={}", 
+                        documentId, s3Key, file.getSize());
+                try {
+                    s3StorageService.upload(file.getBytes(), s3Key, contentType);
+                    log.info("Storage upload success: documentId={}, s3Key={}", documentId, s3Key);
+                } catch (IOException ioException) {
+                    log.error("Storage upload failed: documentId={}, s3Key={}, error={}", 
+                            documentId, s3Key, ioException.getMessage(), ioException);
+                    throw new ResponseStatusException(BAD_REQUEST, "Unable to read uploaded file", ioException);
+                }
+
+                // Create version record
+                log.info("Creating document version: documentId={}, version={}, filename={}", 
+                        documentId, nextVersion, safeFileName);
+                DocumentVersion version = new DocumentVersion();
+                version.setDocument(document);
+                version.setVersionNumber(nextVersion);
+                version.setS3Key(s3Key);
+                version.setFileName(safeFileName);
+                version.setFileSize(file.getSize());
+                version.setMimeType(contentType);
+                version.setUploadedBy(userId);
+                version.setUploadedAt(OffsetDateTime.now());
+
+                DocumentVersion saved = documentVersionRepository.save(version);
+                log.info("Document version saved successfully: documentId={}, versionId={}, version={}", 
+                        documentId, saved.getId(), saved.getVersionNumber());
+
+                return new DocumentVersionResponse(
+                        saved.getId(),
+                        saved.getDocument().getId(),
+                        saved.getVersionNumber(),
+                        saved.getFileName(),
+                        saved.getFileSize(),
+                        saved.getMimeType(),
+                        saved.getS3Key(),
+                        saved.getUploadedBy(),
+                        saved.getUploadedAt()
+                );
+            } catch (ResponseStatusException e) {
+                // Re-throw ResponseStatusException without additional logging (already logged above)
+                throw e;
+            } catch (Exception e) {
+                // Catch any unexpected exceptions
+                log.error("Document upload failed with unexpected error: documentId={}, filename={}, error={}", 
+                        documentId, file.getOriginalFilename(), e.getMessage(), e);
+                throw new ResponseStatusException(BAD_REQUEST, "Document upload failed: " + e.getMessage(), e);
+            }
         }
-
-        // Validate document exists and get status
-        Document document = findDocument(documentId);
-        String statusName = document.getStatus().getName();
-        
-        // Validate document status allows upload
-        if (!STATUS_DRAFT.equals(statusName) && !STATUS_ACTIVE.equals(statusName)) {
-            throw new ResponseStatusException(BAD_REQUEST, 
-                    "Cannot upload version. Document status must be Draft or Active. Current status: " + statusName);
-        }
-
-        // Validate file size (50 MB limit)
-        long maxFileSize = 50 * 1024 * 1024; // 50 MB
-        if (file.getSize() > maxFileSize) {
-            throw new ResponseStatusException(BAD_REQUEST, 
-                    "File size exceeds maximum allowed size of 50 MB");
-        }
-
-        // Validate file type
-        String contentType = file.getContentType();
-        List<String> allowedMimeTypes = List.of(
-                "application/pdf",
-                "application/msword",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                "application/vnd.ms-excel",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "application/vnd.ms-powerpoint",
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                "text/plain",
-                "text/csv",
-                "text/markdown",
-                "application/rtf",
-                "application/vnd.oasis.opendocument.text",
-                "application/vnd.oasis.opendocument.spreadsheet",
-                "application/vnd.oasis.opendocument.presentation",
-                "application/json",
-                "application/xml",
-                "image/png",
-                "image/jpeg",
-                "image/gif"
-        );
-        
-        if (contentType == null || !allowedMimeTypes.contains(contentType)) {
-            throw new ResponseStatusException(BAD_REQUEST,
-                    "File type not allowed. Supported common types include PDF, Word, Excel, PowerPoint, text, CSV, markdown, JSON, XML, and common images. Received: " +
-                    (contentType != null ? contentType : "unknown"));
-        }
-
-        // Generate next version number
-        int nextVersion = documentVersionRepository.findTopByDocumentOrderByVersionNumberDesc(document)
-                .map(version -> version.getVersionNumber() + 1)
-                .orElse(1);
-
-        String safeFileName = file.getOriginalFilename() == null ? "document.bin" : file.getOriginalFilename();
-        String s3Key = "documents/" + documentId + "/v" + nextVersion + "/" + safeFileName;
-
-        // Upload to S3
-        try {
-            s3StorageService.upload(file.getBytes(), s3Key, contentType);
-        } catch (IOException ioException) {
-            throw new ResponseStatusException(BAD_REQUEST, "Unable to read uploaded file", ioException);
-        }
-
-        // Create version record
-        DocumentVersion version = new DocumentVersion();
-        version.setDocument(document);
-        version.setVersionNumber(nextVersion);
-        version.setS3Key(s3Key);
-        version.setFileName(safeFileName);
-        version.setFileSize(file.getSize());
-        version.setMimeType(contentType);
-        version.setUploadedBy(userId);
-        version.setUploadedAt(OffsetDateTime.now());
-
-        DocumentVersion saved = documentVersionRepository.save(version);
-        return new DocumentVersionResponse(
-                saved.getId(),
-                saved.getDocument().getId(),
-                saved.getVersionNumber(),
-                saved.getFileName(),
-                saved.getFileSize(),
-                saved.getMimeType(),
-                saved.getS3Key(),
-                saved.getUploadedBy(),
-                saved.getUploadedAt()
-        );
-    }
 
     @Transactional(readOnly = true)
     public List<DocumentVersionResponse> getDocumentVersions(UUID documentId) {
