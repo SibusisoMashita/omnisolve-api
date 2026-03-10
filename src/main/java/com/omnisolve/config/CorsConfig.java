@@ -10,7 +10,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class CorsConfig {
 
     @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:3000,https://dev-omnisolve-api.eba-n3eav3gy.us-east-1.elasticbeanstalk.com," +
-            "https://prod-omnisolve-api.eba-nebwmcxk.us-east-1.elasticbeanstalk.com,https://d3s7bt9q3x42ay.cloudfront.net}")
+            "https://prod-omnisolve-api.eba-nebwmcxk.us-east-1.elasticbeanstalk.com,https://d3s7bt9q3x42ay.cloudfront.net,https://omnisolve.africa}")
     private String allowedOrigins;
 
     @Bean
