@@ -18,32 +18,14 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class JwtSecurityConfig {
 
-    @Value("${app.security.jwt.enabled:false}")
-    private boolean jwtEnabled;
-
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-
-        if (jwtEnabled) {
-            http
-                    .authorizeHttpRequests(auth -> auth
-                            .requestMatchers(
-                                    "/api/health",
-                                    "/actuator/health",
-                                    "/v3/api-docs/**",
-                                    "/swagger-ui/**",
-                                    "/swagger-ui.html"
-                            ).permitAll()
-                            .anyRequest().authenticated()
-                    )
-                    .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
-        } else {
-            // For local development without JWT - allow all requests
-            http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
-        }
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // Temporary frontend integration mode: allow all API calls without auth.
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
 
         return http.build();
     }
