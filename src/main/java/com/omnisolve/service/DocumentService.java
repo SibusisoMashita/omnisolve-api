@@ -197,14 +197,29 @@ public class DocumentService {
         String contentType = file.getContentType();
         List<String> allowedMimeTypes = List.of(
                 "application/pdf",
+                "application/msword",
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "application/vnd.ms-excel",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                "application/vnd.ms-powerpoint",
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                "text/plain",
+                "text/csv",
+                "text/markdown",
+                "application/rtf",
+                "application/vnd.oasis.opendocument.text",
+                "application/vnd.oasis.opendocument.spreadsheet",
+                "application/vnd.oasis.opendocument.presentation",
+                "application/json",
+                "application/xml",
+                "image/png",
+                "image/jpeg",
+                "image/gif"
         );
         
         if (contentType == null || !allowedMimeTypes.contains(contentType)) {
-            throw new ResponseStatusException(BAD_REQUEST, 
-                    "File type not allowed. Supported types: PDF, DOCX, XLSX, PPTX. Received: " + 
+            throw new ResponseStatusException(BAD_REQUEST,
+                    "File type not allowed. Supported common types include PDF, Word, Excel, PowerPoint, text, CSV, markdown, JSON, XML, and common images. Received: " +
                     (contentType != null ? contentType : "unknown"));
         }
 
