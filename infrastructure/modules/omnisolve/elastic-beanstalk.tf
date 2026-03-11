@@ -114,6 +114,17 @@ resource "aws_iam_role_policy_attachment" "beanstalk_multicontainer_docker" {
 }
 
 # Custom policy for S3 document bucket access
+# This policy grants the Beanstalk EC2 instances permission to:
+# - Read documents (s3:GetObject)
+# - Upload new document versions (s3:PutObject)
+# - Delete documents (s3:DeleteObject)
+# - List bucket contents (s3:ListBucket)
+#
+# These permissions are required for the document version control system
+# to store and retrieve document files from S3.
+#
+# IMPORTANT: This policy applies to BOTH dev and prod buckets
+# to ensure consistent permissions across environments.
 resource "aws_iam_role_policy" "s3_documents_access" {
   name = "${local.name_prefix}-s3-documents-access"
   role = aws_iam_role.beanstalk_ec2.id
@@ -122,6 +133,7 @@ resource "aws_iam_role_policy" "s3_documents_access" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "OmnisolveS3DocumentAccess"
         Effect = "Allow"
         Action = [
           "s3:GetObject",
