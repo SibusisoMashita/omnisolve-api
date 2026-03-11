@@ -1,3 +1,15 @@
+# S3 Bucket for Document Storage
+# This bucket stores all document versions uploaded through the system.
+# Each document version is stored with the path pattern:
+# documents/{documentId}/v{versionNumber}/{filename}
+#
+# Security features enabled:
+# - Versioning: Enabled (preserves all versions of objects)
+# - Public Access: Blocked (all public access denied)
+# - Encryption: AES256 server-side encryption
+#
+# The bucket name follows the pattern: {environment}-omnisolve-documents
+# Examples: dev-omnisolve-documents, prod-omnisolve-documents
 resource "aws_s3_bucket" "documents" {
   bucket = var.s3_bucket_name != "" ? var.s3_bucket_name : "${local.name_prefix}-documents"
 
@@ -6,6 +18,7 @@ resource "aws_s3_bucket" "documents" {
   })
 }
 
+# Enable versioning to preserve document history
 resource "aws_s3_bucket_versioning" "documents" {
   bucket = aws_s3_bucket.documents.id
 
@@ -14,6 +27,7 @@ resource "aws_s3_bucket_versioning" "documents" {
   }
 }
 
+# Block all public access for security
 resource "aws_s3_bucket_public_access_block" "documents" {
   bucket = aws_s3_bucket.documents.id
 
@@ -23,6 +37,7 @@ resource "aws_s3_bucket_public_access_block" "documents" {
   restrict_public_buckets = true
 }
 
+# Enable server-side encryption
 resource "aws_s3_bucket_server_side_encryption_configuration" "documents" {
   bucket = aws_s3_bucket.documents.id
 
