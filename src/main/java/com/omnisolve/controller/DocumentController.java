@@ -1,5 +1,6 @@
 package com.omnisolve.controller;
 
+import com.omnisolve.security.AuthenticationUtil;
 import com.omnisolve.service.DocumentService;
 import com.omnisolve.service.dto.DocumentRequest;
 import com.omnisolve.service.dto.DocumentResponse;
@@ -96,7 +97,8 @@ public class DocumentController {
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create a document")
     public DocumentResponse create(@RequestBody DocumentRequest request) {
-        return documentService.create(request, request.createdBy() != null ? request.createdBy() : "test-user");
+        String userId = AuthenticationUtil.getAuthenticatedUserId();
+        return documentService.create(request, userId);
     }
 
     @PutMapping("/{id}")
@@ -105,31 +107,36 @@ public class DocumentController {
             @Parameter(description = "Document UUID") @PathVariable UUID id,
             @RequestBody DocumentRequest request
     ) {
-        return documentService.update(id, request, request.createdBy() != null ? request.createdBy() : "test-user");
+        String userId = AuthenticationUtil.getAuthenticatedUserId();
+        return documentService.update(id, request, userId);
     }
 
     @PostMapping("/{id}/submit")
     @Operation(summary = "Submit a document for approval")
     public DocumentResponse submit(@Parameter(description = "Document UUID") @PathVariable UUID id) {
-        return documentService.submit(id, "test-user");
+        String userId = AuthenticationUtil.getAuthenticatedUserId();
+        return documentService.submit(id, userId);
     }
 
     @PostMapping("/{id}/approve")
     @Operation(summary = "Approve a pending document")
     public DocumentResponse approve(@Parameter(description = "Document UUID") @PathVariable UUID id) {
-        return documentService.approve(id, "test-user");
+        String userId = AuthenticationUtil.getAuthenticatedUserId();
+        return documentService.approve(id, userId);
     }
 
     @PostMapping("/{id}/reject")
     @Operation(summary = "Reject a pending document")
     public DocumentResponse reject(@Parameter(description = "Document UUID") @PathVariable UUID id) {
-        return documentService.reject(id, "test-user");
+        String userId = AuthenticationUtil.getAuthenticatedUserId();
+        return documentService.reject(id, userId);
     }
 
     @PostMapping("/{id}/archive")
     @Operation(summary = "Archive an active document")
     public DocumentResponse archive(@Parameter(description = "Document UUID") @PathVariable UUID id) {
-        return documentService.archive(id, "test-user");
+        String userId = AuthenticationUtil.getAuthenticatedUserId();
+        return documentService.archive(id, userId);
     }
 
     @PostMapping("/{id}/versions")
@@ -143,7 +150,8 @@ public class DocumentController {
             @Parameter(description = "Document UUID") @PathVariable UUID id,
             @Parameter(description = "Document file payload") @RequestPart("file") MultipartFile file
     ) {
-        return documentService.uploadVersion(id, file, "test-user");
+        String userId = AuthenticationUtil.getAuthenticatedUserId();
+        return documentService.uploadVersion(id, file, userId);
     }
 
     @GetMapping("/{id}/versions")
