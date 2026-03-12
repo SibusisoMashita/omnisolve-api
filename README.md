@@ -20,7 +20,7 @@ Developed by [Valo Systems](https://valosystems.co.za/)
 
 ### Prerequisites
 - Java 21
-- Docker & Docker Compose (for local development) make sure dockeri is tunni
+- Docker & Docker Compose (for local development)
 
 ### Run Locally
 
@@ -28,13 +28,16 @@ Developed by [Valo Systems](https://valosystems.co.za/)
 # Start PostgreSQL with Docker Compose
 docker-compose up -d postgres
 
+# Optional: disable JWT auth for local development
+export JWT_ENABLED=false
+
 # Run the application
 ./mvnw spring-boot:run
 ```
 
-The API will be available at `http://localhost:8080`
+The API will be available at `http://localhost:5000`
 
-Swagger UI: `http://localhost:8080/swagger-ui.html`
+Swagger UI: `http://localhost:5000/swagger-ui.html`
 
 ## Repository Structure
 
@@ -79,6 +82,8 @@ Detailed documentation is available in the [`docs/`](./docs) directory:
 
 - [Architecture](./docs/architecture.md) - System architecture and design
 - [API Documentation](./docs/api.md) - API endpoints and usage
+- [Authentication](./docs/authentication.md) - JWT, Cognito, and request authorization
+- [Authentication Migration Guide](./docs/authentication-migration-guide.md) - rollout and compatibility notes
 - [Deployment Guide](./docs/deployment.md) - CI/CD pipeline and deployment process
 - [Infrastructure](./docs/infrastructure.md) - Terraform and AWS resources
 - [Local Development](./docs/local-development.md) - Development environment setup

@@ -27,7 +27,7 @@ class DocumentControllerIT extends IntegrationTestBase {
         Map<String, Object> request = Map.of(
                 "documentNumber", uniqueDocNumber,
                 "title", "Quality Policy",
-                "typeId", 1,
+                "typeId", 5,  // Form - doesn't require clauses
                 "departmentId", 1,
                 "ownerId", "test-user"
         );
@@ -47,7 +47,7 @@ class DocumentControllerIT extends IntegrationTestBase {
         Map<String, Object> createRequest = Map.of(
                 "documentNumber", uniqueDocNumber,
                 "title", "Test Document",
-                "typeId", 1,
+                "typeId", 5,  // Form - doesn't require clauses
                 "departmentId", 1,
                 "ownerId", "test-user"
         );

@@ -2,13 +2,19 @@
 
 ## Base URL
 
-- **Local**: `http://localhost:8080`
+- **Local**: `http://localhost:5000`
 - **DEV**: `http://<dev-environment>.elasticbeanstalk.com`
 - **PROD**: `http://<prod-environment>.elasticbeanstalk.com`
 
 ## Authentication
 
-All API endpoints (except `/api/health`) require JWT authentication via AWS Cognito.
+All `/api/**` endpoints require JWT authentication via AWS Cognito when `JWT_ENABLED=true`.
+
+Public endpoints:
+- `/actuator/health`
+- `/health`
+- `/swagger-ui/**`
+- `/v3/api-docs/**`
 
 ### Authentication Header
 
@@ -38,13 +44,13 @@ app:
 Swagger UI is available at:
 
 ```
-http://localhost:8080/swagger-ui.html
+http://localhost:5000/swagger-ui.html
 ```
 
 OpenAPI specification:
 
 ```
-http://localhost:8080/v3/api-docs
+http://localhost:5000/v3/api-docs
 ```
 
 ## API Endpoints
@@ -53,7 +59,7 @@ http://localhost:8080/v3/api-docs
 
 #### GET /api/health
 
-Health check endpoint (no authentication required).
+Health check endpoint (requires authentication when `JWT_ENABLED=true` because it is under `/api/**`).
 
 **Response:**
 ```json
@@ -513,7 +519,7 @@ The API is designed to work with a frontend application running on `http://local
 
 ```bash
 # 1. Create document
-curl -X POST http://localhost:8080/api/documents \
+curl -X POST http://localhost:5000/api/documents \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -528,15 +534,15 @@ curl -X POST http://localhost:8080/api/documents \
 # Response: { "id": "770e8400-...", "statusName": "Draft", ... }
 
 # 2. Upload file version
-curl -X POST http://localhost:8080/api/documents/770e8400-.../versions \
+curl -X POST http://localhost:5000/api/documents/770e8400-.../versions \
   -H "Authorization: Bearer <token>" \
   -F "file=@policy.pdf"
 
 # 3. Submit for approval
-curl -X POST http://localhost:8080/api/documents/770e8400-.../submit \
+curl -X POST http://localhost:5000/api/documents/770e8400-.../submit \
   -H "Authorization: Bearer <token>"
 
 # 4. Approve document
-curl -X POST http://localhost:8080/api/documents/770e8400-.../approve \
+curl -X POST http://localhost:5000/api/documents/770e8400-.../approve \
   -H "Authorization: Bearer <token>"
 ```

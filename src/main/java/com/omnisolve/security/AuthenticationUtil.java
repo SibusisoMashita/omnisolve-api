@@ -17,6 +17,7 @@ public class AuthenticationUtil {
     /**
      * Get the authenticated user ID from the JWT token's 'sub' claim.
      * Falls back to "system" if no authentication is present (e.g., in development mode).
+     * In test mode, returns the authentication principal directly.
      *
      * @return the user ID from the JWT 'sub' claim, or "system" if not authenticated
      */
@@ -31,6 +32,12 @@ public class AuthenticationUtil {
             Jwt jwt = jwtAuth.getToken();
             String sub = jwt.getClaimAsString("sub");
             return sub != null ? sub : "system";
+        }
+
+        // For test authentication (UsernamePasswordAuthenticationToken)
+        // Return the principal directly (which is the test user sub)
+        if (authentication.getPrincipal() instanceof String principal) {
+            return principal;
         }
 
         // Fallback for other authentication types
