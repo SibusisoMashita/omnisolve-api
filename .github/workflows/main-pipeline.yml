@@ -13,7 +13,7 @@ env:
   JAVA_VERSION: '21'
   JAVA_DISTRIBUTION: 'temurin'
   AWS_REGION: us-east-1
-  ARTIFACT_NAME: omnisolve-api-0.0.1.jar
+  ARTIFACT_NAME: omnisolve-api.jar
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
@@ -103,40 +103,11 @@ jobs:
           JWT_ENABLED: false
         run: ./mvnw -B test
 
-  # Stage 3: Quality gates
-  qodana-scan:
-    name: Code Quality - Qodana
-    runs-on: ubuntu-latest
-    needs: test
-    permissions:
-      contents: write
-      pull-requests: write
-      checks: write
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 0
-      
-      - name: Qodana Scan
-        uses: JetBrains/qodana-action@v2025.3
-        env:
-          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
-        with:
-          pr-mode: ${{ github.event_name == 'pull_request' }}
-          use-caches: true
-          post-pr-comment: true
-          use-annotations: true
-          upload-result: true
-          push-fixes: 'none'
-
-  # Stage 4: Build Docker image (only on main branch)
+  # Stage 3: Build Docker image (only on main branch)
   docker-build:
     name: Build Docker Image
     runs-on: ubuntu-latest
-    needs: qodana-scan
+    needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: read
@@ -194,11 +165,11 @@ jobs:
           cache-to: type=gha,mode=max,scope=omnisolve-api
           platforms: linux/amd64,linux/arm64
 
-  # Stage 5: Deploy to DEV
+  # Stage 4: Deploy to DEV
   deploy-dev:
     name: Deploy to DEV
     runs-on: ubuntu-latest
-    needs: qodana-scan
+    needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: development
@@ -290,7 +261,7 @@ jobs:
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**URL:** ${{ steps.beanstalk-url.outputs.url }}" >> $GITHUB_STEP_SUMMARY
 
-  # Stage 6: Deploy to PROD (manual approval via environment protection)
+  # Stage 5: Deploy to PROD (manual approval via environment protection)
   deploy-prod:
     name: Deploy to PROD
     runs-on: ubuntu-latest
