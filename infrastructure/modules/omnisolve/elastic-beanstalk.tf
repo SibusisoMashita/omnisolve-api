@@ -206,6 +206,13 @@ resource "aws_elastic_beanstalk_environment" "api" {
     value     = var.beanstalk_instance_type
   }
 
+  # Ensure EB uses launch templates in accounts where launch configurations are disabled.
+  setting {
+    namespace = "aws:autoscaling:launchconfiguration"
+    name      = "DisableIMDSv1"
+    value     = "true"
+  }
+
   setting {
     namespace = "aws:autoscaling:launchconfiguration"
     name      = "IamInstanceProfile"
