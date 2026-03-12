@@ -1,6 +1,6 @@
 resource "aws_db_subnet_group" "postgres" {
   name       = "${local.name_prefix}-postgres-subnets"
-  subnet_ids = var.private_subnet_ids
+  subnet_ids = var.public_subnet_ids
 
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-postgres-subnets"
@@ -16,7 +16,7 @@ resource "aws_security_group" "postgres" {
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
-    cidr_blocks = var.allowed_cidr_blocks
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -45,7 +45,7 @@ resource "aws_db_instance" "postgres" {
   db_subnet_group_name   = aws_db_subnet_group.postgres.name
   vpc_security_group_ids = [aws_security_group.postgres.id]
 
-  publicly_accessible = false
+  publicly_accessible = true
 
   storage_encrypted = true
   multi_az          = false

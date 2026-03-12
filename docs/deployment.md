@@ -48,7 +48,7 @@ graph TB
 - Upload Maven build cache (compiled classes) for test stage
 
 **Artifacts**: 
-- `omnisolve-api-0.0.1.jar` (retained 30 days)
+- `omnisolve-api.jar` (retained 30 days)
 - Maven build cache (retained 1 day)
 
 **Caching**:
@@ -266,7 +266,7 @@ docker-compose up -d postgres
 aws elasticbeanstalk create-application-version \
   --application-name prod-omnisolve-api \
   --version-label manual-$(date +%Y%m%d-%H%M%S) \
-  --source-bundle S3Bucket=omnisolve-deployments,S3Key=omnisolve-api-0.0.1.jar
+  --source-bundle S3Bucket=omnisolve-deployments,S3Key=omnisolve-api.jar
 
 # Update environment
 aws elasticbeanstalk update-environment \
@@ -572,7 +572,7 @@ FROM eclipse-temurin:21-jre
 WORKDIR /app
 
 # Copy JAR last (changes most frequently)
-COPY target/omnisolve-api-0.0.1.jar app.jar
+COPY target/omnisolve-api.jar app.jar
 
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

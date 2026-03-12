@@ -49,13 +49,14 @@ public class JwtSecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
         if (jwtEnabled) {
-            // Production mode: require authentication for API endpoints
+            // Production mode: require authentication for API endpoints.
+            // Keep platform health endpoints public so EB health probes can reach them.
             http
                     .authorizeHttpRequests(auth -> auth
-                            // Public endpoints
-                            .requestMatchers("/actuator/health", "/health").permitAll()
+                            // Public health endpoints
+                            .requestMatchers("/actuator/health", "/health", "/api/health", "/api/health/**").permitAll()
                             .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
-                            // Protect all API endpoints
+                            // Protect all remaining API endpoints
                             .requestMatchers("/api/**").authenticated()
                             .anyRequest().authenticated()
                     )

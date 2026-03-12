@@ -194,16 +194,26 @@ resource "aws_iam_role_policy_attachment" "beanstalk_service_managed" {
 
 # Elastic Beanstalk Environment
 resource "aws_elastic_beanstalk_environment" "api" {
-  name                = "${local.name_prefix}-api"
-  application         = aws_elastic_beanstalk_application.api.name
-  solution_stack_name = var.beanstalk_solution_stack
-  tier                = "WebServer"
+  name                   = "${local.name_prefix}-api"
+  application            = aws_elastic_beanstalk_application.api.name
+  solution_stack_name    = var.beanstalk_solution_stack
+  tier                   = "WebServer"
+  wait_for_ready_timeout = "45m"
 
   # Instance configuration
   setting {
     namespace = "aws:autoscaling:launchconfiguration"
     name      = "InstanceType"
     value     = var.beanstalk_instance_type
+  }
+
+  # Force Elastic Beanstalk to use EC2 Launch Templates instead of legacy
+  # Auto Scaling Launch Configurations in accounts where Launch Configuration
+  # creation has been disabled.
+  setting {
+    namespace = "aws:autoscaling:launchconfiguration"
+    name      = "LaunchTemplateTagPropagationEnabled"
+    value     = "true"
   }
 
   # Enforce IMDSv2-only.
@@ -241,6 +251,14 @@ resource "aws_elastic_beanstalk_environment" "api" {
     namespace = "aws:elasticbeanstalk:environment"
     name      = "ServiceRole"
     value     = aws_iam_role.beanstalk_service.arn
+  }
+
+  # Keep EB/CFN launch timeout aligned with the CloudFormation wait-condition
+  # window (15 minutes = 900 seconds) for deterministic environment creation.
+  setting {
+    namespace = "aws:elasticbeanstalk:control"
+    name      = "LaunchTimeout"
+    value     = "15"
   }
 
   # Load balancer configuration (only applies when LoadBalanced)
@@ -305,6 +323,19 @@ resource "aws_elastic_beanstalk_environment" "api" {
     value     = "/api/health"
   }
 
+  # Ensure process health probes target the same in-app endpoint and port.
+  setting {
+    namespace = "aws:elasticbeanstalk:environment:process:default"
+    name      = "Port"
+    value     = "5000"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment:process:default"
+    name      = "HealthCheckPath"
+    value     = "/api/health"
+  }
+
   # Environment variables
   setting {
     namespace = "aws:elasticbeanstalk:application:environment"
@@ -340,6 +371,12 @@ resource "aws_elastic_beanstalk_environment" "api" {
     namespace = "aws:elasticbeanstalk:application:environment"
     name      = "AWS_S3_BUCKET"
     value     = aws_s3_bucket.documents.bucket
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:application:environment"
+    name      = "PORT"
+    value     = "5000"
   }
 
   # Deployment configuration
