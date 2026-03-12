@@ -218,60 +218,7 @@ CREATE INDEX idx_document_reviews_document_id ON document_reviews(document_id);
 CREATE INDEX idx_document_reviews_reviewer_id ON document_reviews(reviewer_id);
 CREATE INDEX idx_document_reviews_due_date ON document_reviews(due_date);
 
--- ============================================================================
--- SEED DATA - GLOBAL REFERENCE TABLES
--- ============================================================================
 
--- Document Statuses
-INSERT INTO document_statuses (name) VALUES
-    ('Draft'),
-    ('Pending Approval'),
-    ('Active'),
-    ('Superseded'),
-    ('Archived');
-
--- Document Types
-INSERT INTO document_types (name, description, requires_clauses) VALUES
-    ('Policy', 'High-level management policies', true),
-    ('Procedure', 'Step-by-step operational procedures', true),
-    ('Manual', 'Management system manuals', true),
-    ('Work Instruction', 'Detailed task instructions', true),
-    ('Form', 'Operational forms', false),
-    ('Record', 'Evidence records', false),
-    ('Checklist', 'Operational checklists', false);
-
--- Departments
-INSERT INTO departments (name, description) VALUES
-    ('Operations', 'Operational controls and procedures'),
-    ('Compliance', 'Compliance and regulatory management'),
-    ('Risk', 'Enterprise risk oversight'),
-    ('HR', 'People and talent management'),
-    ('Finance', 'Financial controls and reporting');
-
--- ISO Clauses
-INSERT INTO clauses (code, title, description) VALUES
-    ('4.4', 'Quality management system and its processes', 'Define and control QMS processes and interactions.'),
-    ('5.2', 'Quality policy', 'Establish, communicate, and maintain the quality policy.'),
-    ('6.1', 'Actions to address risks and opportunities', 'Plan actions to manage risk and opportunities.'),
-    ('7.5', 'Documented information', 'Create, update, and control documented information.'),
-    ('9.2', 'Internal audit', 'Conduct internal audits to verify QMS effectiveness.');
-
--- ============================================================================
--- SEED DATA - DEMO ORGANISATION
--- ============================================================================
-
--- Create demo organisation for development/testing
-INSERT INTO organisations (name, created_at, updated_at)
-VALUES ('OmniSolve Demo Organisation', NOW(), NOW());
-
--- Create demo site
-INSERT INTO sites (organisation_id, name, created_at, updated_at)
-VALUES (
-    (SELECT id FROM organisations WHERE name = 'OmniSolve Demo Organisation'),
-    'Head Office',
-    NOW(),
-    NOW()
-);
 
 -- Role indexes
 CREATE INDEX idx_roles_organisation_id ON roles(organisation_id);
@@ -281,12 +228,3 @@ CREATE INDEX idx_employees_role_id ON employees(role_id);
 CREATE INDEX idx_role_permissions_role_id ON role_permissions(role_id);
 CREATE INDEX idx_role_permissions_permission_id ON role_permissions(permission_id);
 
--- Permissions (Global reference data for RBAC)
-INSERT INTO permissions (code, name, description) VALUES
-    ('view_dashboard', 'View Dashboard', 'Access dashboard overview'),
-    ('manage_documents', 'Manage Documents', 'Create and manage documents'),
-    ('manage_employees', 'Manage Employees', 'Create and manage employees'),
-    ('manage_risks', 'Manage Risks', 'Manage enterprise risks'),
-    ('manage_audits', 'Manage Audits', 'Create and manage audits'),
-    ('view_reports', 'View Reports', 'Access reporting dashboards'),
-    ('manage_settings', 'Manage Settings', 'Configure system settings');
