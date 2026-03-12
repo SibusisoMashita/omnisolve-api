@@ -40,6 +40,11 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
       
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
       - name: Create terraform.tfvars from secrets
         run: |
           cat > terraform.tfvars <<EOF
@@ -51,11 +56,6 @@ jobs:
           s3_bucket_name       = "${{ secrets.TF_VAR_S3_BUCKET_NAME }}"
           aws_region           = "${{ env.AWS_REGION }}"
           EOF
-      
-      - name: Terraform Format Check
-        id: fmt
-        run: terraform fmt -check -recursive
-        continue-on-error: true
       
       - name: Terraform Init
         id: init

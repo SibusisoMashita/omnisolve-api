@@ -206,9 +206,15 @@ resource "aws_elastic_beanstalk_environment" "api" {
     value     = var.beanstalk_instance_type
   }
 
-  # Ensure EB uses launch templates in accounts where launch configurations are disabled.
+  # Enforce IMDSv2-only via the launch template namespace.
+  # NOTE: Do NOT use aws:autoscaling:launchconfiguration/DisableIMDSv1 on
+  # Amazon Linux 2023 (v4+) platforms – those platforms use EC2 Launch Templates
+  # by default, and setting DisableIMDSv1 under the launchconfiguration namespace
+  # causes CloudFormation to attempt creating a legacy Launch Configuration,
+  # which fails in AWS accounts where Launch Configurations are disabled.
+  # Use aws:autoscaling:launchtemplate/DisableIMDSv1 instead.
   setting {
-    namespace = "aws:autoscaling:launchconfiguration"
+    namespace = "aws:autoscaling:launchtemplate"
     name      = "DisableIMDSv1"
     value     = "true"
   }
@@ -347,4 +353,18 @@ resource "aws_elastic_beanstalk_environment" "api" {
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-api"
   })
+
+  # Explicit dependencies ensure the IAM instance profile and its attached
+  # policies are fully propagated before Elastic Beanstalk's CloudFormation
+  # stack tries to reference them (IAM changes can take 10-15 s to propagate
+  # globally, which otherwise causes AWSEBAutoScalingLaunchTemplate to fail
+  # with "Invalid IAM Instance Profile").
+  depends_on = [
+    aws_iam_instance_profile.beanstalk_ec2,
+    aws_iam_role_policy_attachment.beanstalk_web_tier,
+    aws_iam_role_policy_attachment.beanstalk_multicontainer_docker,
+    aws_iam_role_policy.s3_documents_access,
+    aws_iam_role_policy_attachment.beanstalk_service_health,
+    aws_iam_role_policy_attachment.beanstalk_service_managed,
+  ]
 }
