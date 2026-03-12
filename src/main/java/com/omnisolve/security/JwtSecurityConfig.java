@@ -2,6 +2,8 @@ package com.omnisolve.security;
 
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -16,6 +18,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -24,6 +27,19 @@ public class JwtSecurityConfig {
 
     @Value("${app.security.jwt.enabled}")
     private boolean jwtEnabled;
+
+    private final FirstLoginFilter firstLoginFilter;
+
+    public JwtSecurityConfig(FirstLoginFilter firstLoginFilter) {
+        this.firstLoginFilter = firstLoginFilter;
+    }
+
+    @Bean
+    public FilterRegistrationBean<FirstLoginFilter> firstLoginFilterRegistration(FirstLoginFilter filter) {
+        FilterRegistrationBean<FirstLoginFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -43,7 +59,9 @@ public class JwtSecurityConfig {
                             .requestMatchers("/api/**").authenticated()
                             .anyRequest().authenticated()
                     )
-                    .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
+                    .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                    // Add first login filter after authentication
+                    .addFilterAfter(firstLoginFilter, UsernamePasswordAuthenticationFilter.class);
         } else {
             // Development mode: allow all requests without authentication
             http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
@@ -53,6 +71,7 @@ public class JwtSecurityConfig {
     }
 
     @Bean
+    @ConditionalOnProperty(name = "app.security.jwt.enabled", havingValue = "true")
     public JwtDecoder jwtDecoder(
             @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer,
             @Value("${app.security.cognito.audience}") String audience

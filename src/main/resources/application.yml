@@ -41,5 +41,6 @@ app:
     cognito:
       audience: ${COGNITO_CLIENT_ID:c4af43ic7j8dfe70nr8cn79ei}
       domain: ${COGNITO_DOMAIN:https://us-east-1liurzm1xy.auth.us-east-1.amazoncognito.com}
+      user-pool-id: ${COGNITO_USER_POOL_ID:us-east-1_liURZm1XY}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000,https://dev-omnisolve-api.eba-n3eav3gy.us-east-1.elasticbeanstalk.com,https://prod-omnisolve-api.eba-nebwmcxk.us-east-1.elasticbeanstalk.com,https://d3s7bt9q3x42ay.cloudfront.net,https://omnisolve.africa}

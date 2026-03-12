@@ -5,11 +5,16 @@ import com.omnisolve.domain.Document;
 import com.omnisolve.domain.DocumentStatus;
 import com.omnisolve.domain.DocumentType;
 import com.omnisolve.domain.DocumentVersion;
+import com.omnisolve.domain.Employee;
+import com.omnisolve.domain.Organisation;
 import com.omnisolve.repository.DepartmentRepository;
 import com.omnisolve.repository.DocumentRepository;
 import com.omnisolve.repository.DocumentStatusRepository;
 import com.omnisolve.repository.DocumentTypeRepository;
 import com.omnisolve.repository.DocumentVersionRepository;
+import com.omnisolve.repository.EmployeeRepository;
+import com.omnisolve.repository.OrganisationRepository;
+import com.omnisolve.security.AuthenticationUtil;
 import com.omnisolve.service.dto.DocumentRequest;
 import com.omnisolve.service.dto.DocumentResponse;
 import com.omnisolve.service.dto.DocumentStatsResponse;
@@ -32,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
@@ -49,6 +55,8 @@ public class DocumentService {
     private final DepartmentRepository departmentRepository;
     private final DocumentStatusRepository documentStatusRepository;
     private final DocumentVersionRepository documentVersionRepository;
+    private final EmployeeRepository employeeRepository;
+    private final OrganisationRepository organisationRepository;
     private final S3StorageService s3StorageService;
 
     public DocumentService(
@@ -57,6 +65,8 @@ public class DocumentService {
             DepartmentRepository departmentRepository,
             DocumentStatusRepository documentStatusRepository,
             DocumentVersionRepository documentVersionRepository,
+            EmployeeRepository employeeRepository,
+            OrganisationRepository organisationRepository,
             S3StorageService s3StorageService
     ) {
         this.documentRepository = documentRepository;
@@ -64,40 +74,72 @@ public class DocumentService {
         this.departmentRepository = departmentRepository;
         this.documentStatusRepository = documentStatusRepository;
         this.documentVersionRepository = documentVersionRepository;
+        this.employeeRepository = employeeRepository;
+        this.organisationRepository = organisationRepository;
         this.s3StorageService = s3StorageService;
+    }
+
+    /**
+     * Get the authenticated user's organisation ID for multi-tenant security.
+     */
+    private Long getAuthenticatedUserOrganisationId() {
+        String userId = AuthenticationUtil.getAuthenticatedUserId();
+        log.debug("Retrieving organisation for authenticated user: userId={}", userId);
+
+        Employee authenticatedEmployee = employeeRepository.findByCognitoSub(userId)
+                .orElseThrow(() -> {
+                    log.warn("Authenticated user not found in employees table: userId={}", userId);
+                    return new ResponseStatusException(FORBIDDEN, "User not associated with any organisation");
+                });
+
+        Long organisationId = authenticatedEmployee.getOrganisation().getId();
+        log.debug("Authenticated user organisation: userId={}, organisationId={}", userId, organisationId);
+        return organisationId;
     }
 
     @Transactional(readOnly = true)
         public List<DocumentResponse> listDocuments() {
-            log.info("Fetching all documents");
-            List<DocumentResponse> documents = documentRepository.findAll().stream()
+            Long organisationId = getAuthenticatedUserOrganisationId();
+            log.info("Fetching documents for organisation: organisationId={}", organisationId);
+
+            List<DocumentResponse> documents = documentRepository.findByOrganisationId(organisationId).stream()
                     .map(this::toResponse)
                     .toList();
-            log.info("Retrieved {} documents", documents.size());
+            log.info("Retrieved {} documents for organisation: organisationId={}", documents.size(), organisationId);
             return documents;
         }
 
     @Transactional(readOnly = true)
         public DocumentResponse getDocument(UUID id) {
-            log.info("Fetching document: id={}", id);
-            DocumentResponse response = toResponse(findDocument(id));
+            Long organisationId = getAuthenticatedUserOrganisationId();
+            log.info("Fetching document: id={}, organisationId={}", id, organisationId);
+
+            Document document = documentRepository.findByIdAndOrganisationId(id, organisationId)
+                    .orElseThrow(() -> {
+                        log.warn("Document not found or access denied: id={}, organisationId={}", id, organisationId);
+                        return new ResponseStatusException(NOT_FOUND, "Document not found");
+                    });
+
+            DocumentResponse response = toResponse(document);
             log.info("Document retrieved: id={}, documentNumber={}, status={}", 
-                    id, response.documentNumber(), response.documentNumber());
+                    id, response.documentNumber(), response.statusName());
             return response;
         }
 
     @Transactional(readOnly = true)
         public DocumentStatsResponse getStats() {
-            log.info("Calculating document statistics");
-            long total = documentRepository.count();
-            long active = documentRepository.countByStatus(findStatus(STATUS_ACTIVE));
-            long pending = documentRepository.countByStatus(findStatus(STATUS_PENDING_APPROVAL));
-            long draft = documentRepository.countByStatus(findStatus(STATUS_DRAFT));
-            long archived = documentRepository.countByStatus(findStatus(STATUS_ARCHIVED));
-            long reviewDue = documentRepository.countReviewDue(OffsetDateTime.now());
+            Long organisationId = getAuthenticatedUserOrganisationId();
+            log.info("Calculating document statistics for organisation: organisationId={}", organisationId);
 
-            log.info("Document stats: total={}, active={}, pending={}, draft={}, archived={}, reviewDue={}", 
-                    total, active, pending, draft, archived, reviewDue);
+            long total = documentRepository.countByOrganisationId(organisationId);
+            long active = documentRepository.countByOrganisationIdAndStatusId(organisationId, findStatus(STATUS_ACTIVE).getId());
+            long pending = documentRepository.countByOrganisationIdAndStatusId(organisationId, findStatus(STATUS_PENDING_APPROVAL).getId());
+            long draft = documentRepository.countByOrganisationIdAndStatusId(organisationId, findStatus(STATUS_DRAFT).getId());
+            long archived = documentRepository.countByOrganisationIdAndStatusId(organisationId, findStatus(STATUS_ARCHIVED).getId());
+            long reviewDue = documentRepository.countReviewDueByOrganisation(organisationId, OffsetDateTime.now());
+
+            log.info("Document stats for org {}: total={}, active={}, pending={}, draft={}, archived={}, reviewDue={}", 
+                    organisationId, total, active, pending, draft, archived, reviewDue);
             return new DocumentStatsResponse(total, active, pending, reviewDue, draft, archived);
         }
 
@@ -107,6 +149,14 @@ public class DocumentService {
                     request.title(), request.typeId(), request.departmentId(), request.ownerId(), userId);
 
             try {
+                // Get authenticated user's organisation
+                Long organisationId = getAuthenticatedUserOrganisationId();
+                Organisation organisation = organisationRepository.findById(organisationId)
+                        .orElseThrow(() -> {
+                            log.error("Organisation not found: organisationId={}", organisationId);
+                            return new ResponseStatusException(NOT_FOUND, "Organisation not found");
+                        });
+
                 DocumentType type = documentTypeRepository.findById(request.typeId())
                         .orElseThrow(() -> {
                             log.warn("Document type not found: typeId={}", request.typeId());
@@ -130,6 +180,7 @@ public class DocumentService {
                 log.info("Generated document number: {}", documentNumber);
 
                 Document document = new Document();
+                document.setOrganisation(organisation);
                 document.setDocumentNumber(documentNumber);
                 document.setTitle(request.title());
                 document.setSummary(request.summary());
@@ -146,8 +197,8 @@ public class DocumentService {
                 document.setUpdatedAt(now);
 
                 Document saved = documentRepository.save(document);
-                log.info("Document created successfully: id={}, documentNumber={}, status={}", 
-                        saved.getId(), saved.getDocumentNumber(), saved.getStatus().getName());
+                log.info("Document created successfully: id={}, documentNumber={}, status={}, organisationId={}", 
+                        saved.getId(), saved.getDocumentNumber(), saved.getStatus().getName(), organisationId);
                 return toResponse(saved);
             } catch (ResponseStatusException e) {
                 throw e;
@@ -382,9 +433,10 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public DocumentAttentionResponse getAttention() {
+        Long organisationId = getAuthenticatedUserOrganisationId();
         OffsetDateTime now = OffsetDateTime.now();
 
-        List<PendingApprovalItem> pending = documentRepository.findPendingApproval().stream()
+        List<PendingApprovalItem> pending = documentRepository.findPendingApprovalByOrganisation(organisationId).stream()
                 .map(doc -> new PendingApprovalItem(
                         doc.getId(),
                         doc.getDocumentNumber(),
@@ -395,7 +447,7 @@ public class DocumentService {
                 ))
                 .toList();
 
-        List<OverdueReviewItem> overdue = documentRepository.findOverdueReviews(now).stream()
+        List<OverdueReviewItem> overdue = documentRepository.findOverdueReviewsByOrganisation(organisationId, now).stream()
                 .map(doc -> {
                     long daysOverdue = ChronoUnit.DAYS.between(doc.getNextReviewAt(), now);
                     return new OverdueReviewItem(
@@ -414,10 +466,11 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public List<UpcomingReviewResponse> getUpcomingReviews(int days) {
+        Long organisationId = getAuthenticatedUserOrganisationId();
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime future = now.plusDays(days);
 
-        return documentRepository.findUpcomingReviews(now, future).stream()
+        return documentRepository.findUpcomingReviewsByOrganisation(organisationId, now, future).stream()
                 .map(doc -> {
                     long daysUntil = ChronoUnit.DAYS.between(now, doc.getNextReviewAt());
                     return new UpcomingReviewResponse(
@@ -506,6 +559,8 @@ public class DocumentService {
     }
 
     private String generateDocumentNumber(DocumentType type) {
+        Long organisationId = getAuthenticatedUserOrganisationId();
+        
         // Get type prefix (first 3 letters uppercase)
         String prefix = type.getName().length() >= 3 
                 ? type.getName().substring(0, 3).toUpperCase()
@@ -514,9 +569,9 @@ public class DocumentService {
         // Get current year
         int year = OffsetDateTime.now().getYear();
 
-        // Find the latest document number for this type and year
+        // Find the latest document number for this type and year within the organisation
         String pattern = prefix + "-" + year + "-%";
-        List<Document> existingDocs = documentRepository.findByTypeAndPattern(type, pattern);
+        List<Document> existingDocs = documentRepository.findByOrganisationAndTypeAndPattern(organisationId, type, pattern);
         
         int nextSequence = 1;
         if (!existingDocs.isEmpty()) {

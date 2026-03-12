@@ -20,7 +20,11 @@ public class Document {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "document_number", nullable = false, unique = true, length = 100)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organisation_id", nullable = false)
+    private Organisation organisation;
+
+    @Column(name = "document_number", nullable = false, length = 100)
     private String documentNumber;
 
     @Column(name = "title", nullable = false, length = 255)
@@ -61,6 +65,14 @@ public class Document {
 
     public UUID getId() {
         return id;
+    }
+
+    public Organisation getOrganisation() {
+        return organisation;
+    }
+
+    public void setOrganisation(Organisation organisation) {
+        this.organisation = organisation;
     }
 
     public String getDocumentNumber() {

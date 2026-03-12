@@ -9,6 +9,7 @@ spring:
   flyway:
     enabled: true
     clean-disabled: false
+    clean-on-validation-error: true
 
 # Disable JWT security for tests
 app:

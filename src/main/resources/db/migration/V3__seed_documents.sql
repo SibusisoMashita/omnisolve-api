@@ -1,5 +1,12 @@
+-- ============================================================================
+-- SEED DATA - DEMO DOCUMENTS
+-- ============================================================================
+-- These documents belong to the demo organisation for testing purposes
+-- ============================================================================
+
 INSERT INTO documents (
     id,
+    organisation_id,
     document_number,
     title,
     summary,
@@ -16,6 +23,7 @@ INSERT INTO documents (
 VALUES
     (
         'b87c5a5f-7cd2-4f60-a62b-6d0956d98d70',
+        (SELECT id FROM organisations WHERE name = 'OmniSolve Demo Organisation'),
         'POL-001',
         'Quality Policy',
         'Defines quality commitments and management direction.',
@@ -31,6 +39,7 @@ VALUES
     ),
     (
         '95b3f1e8-d0d5-4310-8fb5-582f057dc6a8',
+        (SELECT id FROM organisations WHERE name = 'OmniSolve Demo Organisation'),
         'PRC-012',
         'Risk Management Procedure',
         'Procedure for identifying, assessing, and treating operational risk.',
@@ -46,6 +55,7 @@ VALUES
     ),
     (
         'd15cadf4-d6f0-44cf-b6c9-59ea43ce9bc4',
+        (SELECT id FROM organisations WHERE name = 'OmniSolve Demo Organisation'),
         'PRC-020',
         'Incident Reporting Procedure',
         'Procedure for reporting, triaging, and closing incidents.',
