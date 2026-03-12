@@ -206,15 +206,14 @@ resource "aws_elastic_beanstalk_environment" "api" {
     value     = var.beanstalk_instance_type
   }
 
-  # Enforce IMDSv2-only via the launch template namespace.
-  # NOTE: Do NOT use aws:autoscaling:launchconfiguration/DisableIMDSv1 on
-  # Amazon Linux 2023 (v4+) platforms – those platforms use EC2 Launch Templates
-  # by default, and setting DisableIMDSv1 under the launchconfiguration namespace
-  # causes CloudFormation to attempt creating a legacy Launch Configuration,
-  # which fails in AWS accounts where Launch Configurations are disabled.
-  # Use aws:autoscaling:launchtemplate/DisableIMDSv1 instead.
+  # Enforce IMDSv2-only.
+  # DisableIMDSv1 belongs under aws:autoscaling:launchconfiguration even on
+  # AL2023 (v4+) environments that use EC2 Launch Templates by default.
+  # EB maps this flag to the Launch Template's HttpTokens=required at deploy
+  # time. The aws:autoscaling:launchtemplate namespace does NOT support this
+  # option name and will return a ConfigurationValidationException.
   setting {
-    namespace = "aws:autoscaling:launchtemplate"
+    namespace = "aws:autoscaling:launchconfiguration"
     name      = "DisableIMDSv1"
     value     = "true"
   }
