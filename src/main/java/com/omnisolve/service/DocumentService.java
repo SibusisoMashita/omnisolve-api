@@ -2,8 +2,10 @@ package com.omnisolve.service;
 
 import com.omnisolve.audit.Auditable;
 import com.omnisolve.config.CacheConfig;
+import com.omnisolve.domain.Clause;
 import com.omnisolve.domain.Department;
 import com.omnisolve.domain.Document;
+import com.omnisolve.domain.DocumentClauseLink;
 import com.omnisolve.domain.DocumentStatus;
 import com.omnisolve.domain.DocumentType;
 import com.omnisolve.domain.DocumentVersion;
@@ -13,7 +15,9 @@ import com.omnisolve.event.DocumentArchivedEvent;
 import com.omnisolve.event.DocumentRejectedEvent;
 import com.omnisolve.event.DocumentSubmittedEvent;
 import com.omnisolve.event.DocumentUploadedEvent;
+import com.omnisolve.repository.ClauseRepository;
 import com.omnisolve.repository.DepartmentRepository;
+import com.omnisolve.repository.DocumentClauseLinkRepository;
 import com.omnisolve.repository.DocumentRepository;
 import com.omnisolve.repository.DocumentStatusRepository;
 import com.omnisolve.repository.DocumentTypeRepository;
@@ -86,6 +90,8 @@ public class DocumentService {
     private final DocumentStatusRepository documentStatusRepository;
     private final DocumentVersionRepository documentVersionRepository;
     private final OrganisationRepository organisationRepository;
+    private final DocumentClauseLinkRepository documentClauseLinkRepository;
+    private final ClauseRepository clauseRepository;
     private final S3StorageService s3StorageService;
     private final SecurityContextFacade securityContextFacade;
     private final ApplicationEventPublisher eventPublisher;
@@ -97,6 +103,8 @@ public class DocumentService {
             DocumentStatusRepository documentStatusRepository,
             DocumentVersionRepository documentVersionRepository,
             OrganisationRepository organisationRepository,
+            DocumentClauseLinkRepository documentClauseLinkRepository,
+            ClauseRepository clauseRepository,
             S3StorageService s3StorageService,
             SecurityContextFacade securityContextFacade,
             ApplicationEventPublisher eventPublisher) {
@@ -106,6 +114,8 @@ public class DocumentService {
         this.documentStatusRepository = documentStatusRepository;
         this.documentVersionRepository = documentVersionRepository;
         this.organisationRepository = organisationRepository;
+        this.documentClauseLinkRepository = documentClauseLinkRepository;
+        this.clauseRepository = clauseRepository;
         this.s3StorageService = s3StorageService;
         this.securityContextFacade = securityContextFacade;
         this.eventPublisher = eventPublisher;
@@ -265,6 +275,12 @@ public class DocumentService {
 
         Document saved = documentRepository.save(document);
         log.info("Document created: id={}, documentNumber={}, organisationId={}", saved.getId(), saved.getDocumentNumber(), organisationId);
+        
+        // Save clause links if provided
+        if (request.clauseIds() != null && !request.clauseIds().isEmpty()) {
+            saveClauseLinks(saved, request.clauseIds(), userId);
+        }
+        
         return toResponse(saved);
     }
 
@@ -298,6 +314,17 @@ public class DocumentService {
 
         Document saved = documentRepository.save(document);
         log.info("Document updated: id={}, documentNumber={}", saved.getId(), saved.getDocumentNumber());
+        
+        // Update clause links if provided
+        if (request.clauseIds() != null) {
+            // Delete existing links
+            documentClauseLinkRepository.deleteByDocumentId(saved.getId());
+            // Save new links
+            if (!request.clauseIds().isEmpty()) {
+                saveClauseLinks(saved, request.clauseIds(), userId);
+            }
+        }
+        
         return toResponse(saved);
     }
 
@@ -500,7 +527,25 @@ public class DocumentService {
         };
     }
 
+    private void saveClauseLinks(Document document, List<Long> clauseIds, String userId) {
+        List<Clause> clauses = clauseRepository.findAllById(clauseIds);
+        if (clauses.size() != clauseIds.size()) {
+            List<Long> foundIds = clauses.stream().map(Clause::getId).toList();
+            List<Long> missing = clauseIds.stream().filter(id -> !foundIds.contains(id)).toList();
+            throw new ResponseStatusException(NOT_FOUND, "Clause(s) not found: " + missing);
+        }
+        List<DocumentClauseLink> links = clauses.stream().map(clause -> {
+            DocumentClauseLink link = new DocumentClauseLink();
+            link.setDocument(document);
+            link.setClause(clause);
+            return link;
+        }).toList();
+        documentClauseLinkRepository.saveAll(links);
+        log.info("Saved {} clause links for document: id={}", clauseIds.size(), document.getId());
+    }
+
     private DocumentResponse toResponse(Document document) {
+        List<Long> clauseIds = documentClauseLinkRepository.findClauseIdsByDocumentId(document.getId());
         return new DocumentResponse(
                 document.getId(),
                 document.getDocumentNumber(),
@@ -517,6 +562,7 @@ public class DocumentService {
                 document.getCreatedBy(),
                 document.getNextReviewAt(),
                 document.getCreatedAt(),
-                document.getUpdatedAt());
+                document.getUpdatedAt(),
+                clauseIds);
     }
 }

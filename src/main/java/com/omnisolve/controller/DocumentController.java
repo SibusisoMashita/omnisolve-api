@@ -1,6 +1,7 @@
 package com.omnisolve.controller;
 
 import com.omnisolve.security.AuthenticationUtil;
+import com.omnisolve.service.ClauseService;
 import com.omnisolve.service.DocumentService;
 import com.omnisolve.service.dto.DocumentRequest;
 import com.omnisolve.service.dto.DocumentResponse;
@@ -37,9 +38,11 @@ import org.springframework.web.multipart.MultipartFile;
 public class DocumentController {
 
     private final DocumentService documentService;
+    private final ClauseService clauseService;
 
-    public DocumentController(DocumentService documentService) {
+    public DocumentController(DocumentService documentService, ClauseService clauseService) {
         this.documentService = documentService;
+        this.clauseService = clauseService;
     }
 
     @GetMapping
@@ -85,6 +88,35 @@ public class DocumentController {
     })
     public DocumentWorkflowStatsResponse getWorkflowStats() {
         return documentService.getWorkflowStats();
+    }
+
+    @GetMapping("/clauses/tree")
+    @Operation(summary = "Get clause tree with hierarchical structure for document linking")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Clause tree retrieved successfully")
+    })
+    public List<com.omnisolve.service.dto.ClauseResponse> getClauseTree(
+            @Parameter(description = "Filter by standard ID (optional)")
+            @RequestParam(required = false) Long standardId
+    ) {
+        if (standardId != null) {
+            return clauseService.list().stream()
+                    .filter(clause -> clause.standardId().equals(standardId))
+                    .toList();
+        }
+        return clauseService.list();
+    }
+
+    @GetMapping("/clauses/{clauseId}/documents")
+    @Operation(summary = "Get all documents linked to a specific clause")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Documents retrieved successfully"),
+            @ApiResponse(responseCode = "404", description = "Clause not found", content = @Content(schema = @Schema(hidden = true)))
+    })
+    public List<com.omnisolve.service.dto.DocumentResponse> getDocumentsByClause(
+            @Parameter(description = "Clause ID") @PathVariable Long clauseId
+    ) {
+        return clauseService.getDocumentsByClause(clauseId);
     }
 
     @GetMapping("/{id}")

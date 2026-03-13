@@ -58,5 +58,12 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
 
     @Query("SELECT d FROM Document d WHERE d.type = :type AND d.documentNumber LIKE :pattern ORDER BY d.createdAt DESC")
     List<Document> findByTypeAndPattern(@Param("type") DocumentType type, @Param("pattern") String pattern);
+
+    @Query(value = "SELECT d.* FROM documents d " +
+           "INNER JOIN document_clause_links dcl ON d.id = dcl.document_id " +
+           "WHERE dcl.clause_id = :clauseId " +
+           "ORDER BY d.document_number ASC", 
+           nativeQuery = true)
+    List<Document> findByClauseId(@Param("clauseId") Long clauseId);
 }
 

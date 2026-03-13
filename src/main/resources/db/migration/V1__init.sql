@@ -4,8 +4,9 @@
 -- This schema supports multi-organisation SaaS architecture where:
 -- - Multiple organisations can use the system independently
 -- - Data is isolated by organisation_id
--- - Reference tables (types, statuses, clauses) are shared globally
--- - Business data (documents, employees) is scoped to organisations
+-- - Reference tables (types, statuses, standards, clauses) are shared globally
+-- - Business data (documents, employees, incidents) is scoped to organisations
+-- - Multi-standard compliance (ISO 9001, ISO 14001, ISO 45001)
 -- ============================================================================
 
 CREATE SCHEMA IF NOT EXISTS public;
@@ -15,6 +16,31 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
 -- ============================================================================
 -- GLOBAL REFERENCE TABLES (shared across all organisations)
 -- ============================================================================
+
+-- Compliance Standards (ISO 9001, ISO 14001, ISO 45001, etc.)
+CREATE TABLE standards (
+    id BIGSERIAL PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    description VARCHAR(1000),
+    version VARCHAR(50),
+    published_date DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ISO Clauses (linked to standards for multi-standard support)
+CREATE TABLE clauses (
+    id BIGSERIAL PRIMARY KEY,
+    standard_id BIGINT NOT NULL REFERENCES standards(id) ON DELETE CASCADE,
+    code VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description VARCHAR(1000),
+    parent_code VARCHAR(50),
+    level INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (standard_id, code)
+);
 
 -- Document Types (Policy, Procedure, Manual, etc.)
 CREATE TABLE document_types (
@@ -37,20 +63,32 @@ CREATE TABLE departments (
     description VARCHAR(255)
 );
 
--- ISO Clauses (4.4, 5.2, 6.1, etc.)
-CREATE TABLE clauses (
-    id BIGSERIAL PRIMARY KEY,
-    code VARCHAR(50) NOT NULL UNIQUE,
-    title VARCHAR(255) NOT NULL,
-    description VARCHAR(1000)
-);
-
 -- Permissions (Global reference data for RBAC)
 CREATE TABLE permissions (
     id BIGSERIAL PRIMARY KEY,
     code VARCHAR(100) NOT NULL UNIQUE,
     name VARCHAR(150) NOT NULL,
     description VARCHAR(255)
+);
+
+-- Incident Types (Injury, Environmental, Quality, Security, Near Miss)
+CREATE TABLE incident_types (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description VARCHAR(255)
+);
+
+-- Incident Severity Levels
+CREATE TABLE incident_severities (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    level INTEGER NOT NULL
+);
+
+-- Incident Statuses
+CREATE TABLE incident_statuses (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE
 );
 
 -- ============================================================================
@@ -115,7 +153,7 @@ CREATE TABLE employees (
 );
 
 -- ============================================================================
--- BUSINESS DATA TABLES (scoped to organisations)
+-- DOCUMENT CONTROL TABLES (scoped to organisations)
 -- ============================================================================
 
 -- Documents (Organisation-scoped controlled documents)
@@ -171,6 +209,83 @@ CREATE TABLE document_reviews (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- ============================================================================
+-- INCIDENT MANAGEMENT TABLES (scoped to organisations)
+-- ============================================================================
+
+-- Incidents (Organisation-scoped incident reports)
+CREATE TABLE incidents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organisation_id BIGINT NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+    incident_number VARCHAR(100) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    type_id BIGINT NOT NULL REFERENCES incident_types(id),
+    severity_id BIGINT NOT NULL REFERENCES incident_severities(id),
+    status_id BIGINT NOT NULL REFERENCES incident_statuses(id),
+    department_id BIGINT REFERENCES departments(id),
+    site_id BIGINT REFERENCES sites(id),
+    reported_by VARCHAR(255) NOT NULL,
+    occurred_at TIMESTAMPTZ,
+    reported_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    assigned_investigator VARCHAR(255),
+    closed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (organisation_id, incident_number)
+);
+
+-- Incident Attachments (Files stored in S3)
+CREATE TABLE incident_attachments (
+    id BIGSERIAL PRIMARY KEY,
+    incident_id UUID NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+    s3_key VARCHAR(500) NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_size BIGINT,
+    mime_type VARCHAR(100),
+    uploaded_by VARCHAR(255) NOT NULL,
+    uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Incident Investigations (Root cause analysis)
+CREATE TABLE incident_investigations (
+    id BIGSERIAL PRIMARY KEY,
+    incident_id UUID NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+    investigator_id VARCHAR(255) NOT NULL,
+    analysis_method VARCHAR(100),
+    root_cause TEXT,
+    findings TEXT,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Incident Corrective Actions
+CREATE TABLE incident_actions (
+    id BIGSERIAL PRIMARY KEY,
+    incident_id UUID NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    assigned_to VARCHAR(255),
+    due_date DATE,
+    status VARCHAR(50) NOT NULL DEFAULT 'open',
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Incident Comments / Timeline
+CREATE TABLE incident_comments (
+    id BIGSERIAL PRIMARY KEY,
+    incident_id UUID NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+    comment TEXT NOT NULL,
+    created_by VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================================
+-- AUDIT TRAIL
+-- ============================================================================
+
 -- Audit Logs (Organisation-scoped audit trail)
 CREATE TABLE audit_logs (
     id BIGSERIAL PRIMARY KEY,
@@ -187,6 +302,11 @@ CREATE TABLE audit_logs (
 -- INDEXES FOR PERFORMANCE
 -- ============================================================================
 
+-- Standards and Clauses indexes
+CREATE INDEX idx_clauses_standard_id ON clauses(standard_id);
+CREATE INDEX idx_clauses_parent_code ON clauses(parent_code);
+CREATE INDEX idx_clauses_code ON clauses(code);
+
 -- Employee indexes
 CREATE INDEX idx_employees_organisation_id ON employees(organisation_id);
 CREATE INDEX idx_employees_cognito_sub ON employees(cognito_sub);
@@ -195,6 +315,14 @@ CREATE INDEX idx_employees_email ON employees(email);
 
 -- Site indexes
 CREATE INDEX idx_sites_organisation_id ON sites(organisation_id);
+
+-- Role indexes
+CREATE INDEX idx_roles_organisation_id ON roles(organisation_id);
+CREATE INDEX idx_employees_role_id ON employees(role_id);
+
+-- Role permission indexes
+CREATE INDEX idx_role_permissions_role_id ON role_permissions(role_id);
+CREATE INDEX idx_role_permissions_permission_id ON role_permissions(permission_id);
 
 -- Document indexes
 CREATE INDEX idx_documents_organisation_id ON documents(organisation_id);
@@ -208,23 +336,30 @@ CREATE INDEX idx_documents_org_status ON documents(organisation_id, status_id);
 CREATE INDEX idx_documents_org_department ON documents(organisation_id, department_id);
 CREATE INDEX idx_documents_org_type ON documents(organisation_id, type_id);
 
--- Audit log indexes
-CREATE INDEX idx_audit_logs_organisation_id ON audit_logs(organisation_id);
-CREATE INDEX idx_audit_logs_entity ON audit_logs(entity_name, entity_id);
-CREATE INDEX idx_audit_logs_performed_at ON audit_logs(performed_at);
-
 -- Document review indexes
 CREATE INDEX idx_document_reviews_document_id ON document_reviews(document_id);
 CREATE INDEX idx_document_reviews_reviewer_id ON document_reviews(reviewer_id);
 CREATE INDEX idx_document_reviews_due_date ON document_reviews(due_date);
 
+-- Document clause link indexes
+CREATE INDEX idx_document_clause_links_document_id ON document_clause_links(document_id);
+CREATE INDEX idx_document_clause_links_clause_id ON document_clause_links(clause_id);
 
+-- Incident indexes
+CREATE INDEX idx_incidents_organisation_id ON incidents(organisation_id);
+CREATE INDEX idx_incidents_status_id ON incidents(status_id);
+CREATE INDEX idx_incidents_severity_id ON incidents(severity_id);
+CREATE INDEX idx_incidents_department_id ON incidents(department_id);
+CREATE INDEX idx_incidents_site_id ON incidents(site_id);
+CREATE INDEX idx_incidents_reported_by ON incidents(reported_by);
 
--- Role indexes
-CREATE INDEX idx_roles_organisation_id ON roles(organisation_id);
-CREATE INDEX idx_employees_role_id ON employees(role_id);
+-- Incident relationship indexes
+CREATE INDEX idx_incident_attachments_incident_id ON incident_attachments(incident_id);
+CREATE INDEX idx_incident_investigations_incident_id ON incident_investigations(incident_id);
+CREATE INDEX idx_incident_actions_incident_id ON incident_actions(incident_id);
+CREATE INDEX idx_incident_comments_incident_id ON incident_comments(incident_id);
 
--- Role permission indexes
-CREATE INDEX idx_role_permissions_role_id ON role_permissions(role_id);
-CREATE INDEX idx_role_permissions_permission_id ON role_permissions(permission_id);
-
+-- Audit log indexes
+CREATE INDEX idx_audit_logs_organisation_id ON audit_logs(organisation_id);
+CREATE INDEX idx_audit_logs_entity ON audit_logs(entity_name, entity_id);
+CREATE INDEX idx_audit_logs_performed_at ON audit_logs(performed_at);
