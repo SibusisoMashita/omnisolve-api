@@ -62,11 +62,9 @@ Flyway manages database schema changes through versioned SQL scripts.
 
 ```
 src/main/resources/db/migration/
-├── V1__init.sql                  # Initial schema
-├── V2__seed_data.sql             # Reference data + demo org
-├── V3__seed_documents.sql        # Demo documents
-├── V4__seed_demo_employee.sql    # Demo employee
-└── V5__incident_management.sql   # Incident module
+├── V1__init.sql                      # Initial schema (all core tables)
+├── V2__seed.sql                      # Reference data + demo org
+└── V3__contractor_management.sql    # Contractor module
 ```
 
 ### Migration Strategy
@@ -78,9 +76,9 @@ src/main/resources/db/migration/
 - Insert reference data
 
 **Naming Convention:**
-- `V1__init.sql` - Initial schema setup
-- `V2__seed_data.sql` - Seed reference data
-- `V5__incident_management.sql` - Add incident module
+- `V1__init.sql` - Initial schema setup (documents, incidents, inspections, assets)
+- `V2__seed.sql` - Seed reference data and demo organisation
+- `V3__contractor_management.sql` - Add contractor management module
 
 **Flyway Configuration:**
 ```yaml
@@ -99,15 +97,15 @@ spring:
 SELECT * FROM flyway_schema_history;
 
 -- Example output:
--- installed_rank | version | description           | success
--- 1              | 1       | init                  | true
--- 2              | 2       | seed data             | true
--- 3              | 5       | incident management   | true
+-- installed_rank | version | description              | success
+-- 1              | 1       | init                     | true
+-- 2              | 2       | seed                     | true
+-- 3              | 3       | contractor management    | true
 ```
 
 ## V1__init.sql - Initial Schema
 
-This migration creates the complete multi-tenant schema with multi-standard support:
+This migration creates the complete multi-tenant schema with multi-standard support and all core modules:
 
 **Compliance Standards:**
 ```sql
@@ -192,6 +190,44 @@ CREATE TABLE incidents (
 );
 ```
 
+**Assets (Tenant-Scoped):**
+```sql
+CREATE TABLE assets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organisation_id BIGINT NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+    asset_type_id BIGINT NOT NULL REFERENCES asset_types(id),
+    name VARCHAR(255) NOT NULL,
+    asset_tag VARCHAR(100),
+    serial_number VARCHAR(100),
+    site_id BIGINT REFERENCES sites(id),
+    department_id BIGINT REFERENCES departments(id),
+    status VARCHAR(50) NOT NULL DEFAULT 'Active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (organisation_id, asset_tag)
+);
+```
+
+**Inspections (Tenant-Scoped):**
+```sql
+CREATE TABLE inspections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organisation_id BIGINT NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+    asset_id UUID NOT NULL REFERENCES assets(id),
+    inspection_type_id BIGINT REFERENCES inspection_types(id),
+    inspection_number VARCHAR(100) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    inspector_id VARCHAR(255),
+    status VARCHAR(50) NOT NULL DEFAULT 'SCHEDULED',
+    scheduled_at TIMESTAMPTZ,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (organisation_id, inspection_number)
+);
+```
+
 ## V2__seed.sql - Reference Data
 
 This migration seeds all global reference data including multi-standard support:
@@ -257,54 +293,76 @@ INSERT INTO organisations (name, created_at, updated_at)
 VALUES ('OmniSolve Demo Organisation', NOW(), NOW());
 ```
 
-## V5__incident_management.sql - Incident Module
+## V3__contractor_management.sql - Contractor Module
 
-This migration adds the incident management module:
+This migration adds the contractor management module:
 
-**Incidents (Tenant-Scoped):**
+**Contractors (Tenant-Scoped):**
 ```sql
-CREATE TABLE incidents (
+CREATE TABLE contractors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organisation_id BIGINT NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
-    incident_number VARCHAR(100) NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    type_id BIGINT NOT NULL REFERENCES incident_types(id),
-    severity_id BIGINT NOT NULL REFERENCES incident_severities(id),
-    status_id BIGINT NOT NULL REFERENCES incident_statuses(id),
-    department_id BIGINT REFERENCES departments(id),
-    site_id BIGINT REFERENCES sites(id),
-    reported_by VARCHAR(255) NOT NULL,
-    occurred_at TIMESTAMPTZ,
-    assigned_investigator VARCHAR(255),
-    closed_at TIMESTAMPTZ,
+    name VARCHAR(255) NOT NULL,
+    registration_number VARCHAR(100),
+    contact_person VARCHAR(255),
+    email VARCHAR(255),
+    phone VARCHAR(50),
+    status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (organisation_id, incident_number)
+    UNIQUE (organisation_id, name)
 );
 ```
 
-**Incident Reference Data:**
+**Contractor Workers:**
 ```sql
-INSERT INTO incident_types (name, description) VALUES
-    ('Injury', 'Workplace injury or health incident'),
-    ('Environmental', 'Environmental spill or impact'),
-    ('Quality', 'Product or service quality issue'),
-    ('Security', 'Security breach or threat'),
-    ('Near Miss', 'Incident that could have caused harm but did not');
+CREATE TABLE contractor_workers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    contractor_id UUID NOT NULL REFERENCES contractors(id) ON DELETE CASCADE,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    id_number VARCHAR(50),
+    phone VARCHAR(50),
+    email VARCHAR(255),
+    status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
 
-INSERT INTO incident_severities (name, level) VALUES
-    ('Low', 1),
-    ('Medium', 2),
-    ('High', 3),
-    ('Critical', 4);
+**Contractor Document Types (Reference Data):**
+```sql
+CREATE TABLE contractor_document_types (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    description VARCHAR(1000),
+    requires_expiry BOOLEAN NOT NULL DEFAULT TRUE
+);
+```
 
-INSERT INTO incident_statuses (name) VALUES
-    ('Reported'),
-    ('Under Review'),
-    ('Investigation'),
-    ('Action Required'),
-    ('Closed');
+**Contractor Documents:**
+```sql
+CREATE TABLE contractor_documents (
+    id BIGSERIAL PRIMARY KEY,
+    contractor_id UUID NOT NULL REFERENCES contractors(id) ON DELETE CASCADE,
+    document_type_id BIGINT REFERENCES contractor_document_types(id),
+    s3_key VARCHAR(500) NOT NULL,
+    file_name VARCHAR(255),
+    file_size BIGINT,
+    mime_type VARCHAR(100),
+    issued_at DATE,
+    expiry_date DATE,
+    uploaded_by VARCHAR(255),
+    uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+**Contractor Site Access:**
+```sql
+CREATE TABLE contractor_sites (
+    contractor_id UUID NOT NULL REFERENCES contractors(id) ON DELETE CASCADE,
+    site_id BIGINT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    PRIMARY KEY (contractor_id, site_id)
+);
 ```
 
 ## Primary Key Strategy

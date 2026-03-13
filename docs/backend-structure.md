@@ -9,15 +9,29 @@ This document explains the package organization of the OmniSolve API codebase. U
 ```
 src/main/java/com/omnisolve/
 ├── OmnisolveApiApplication.java    # Spring Boot entry point
+├── assurance/                      # Asset inspection module
+│   ├── controller/                 # Inspection REST endpoints
+│   ├── domain/                     # Asset & inspection entities
+│   ├── dto/                        # Inspection DTOs
+│   ├── repository/                 # Inspection data access
+│   └── service/                    # Inspection business logic
+├── contractor/                     # Contractor management module
+│   ├── controller/                 # Contractor REST endpoints
+│   ├── domain/                     # Contractor entities
+│   ├── repository/                 # Contractor data access
+│   └── service/                    # Contractor business logic
+│       └── dto/                    # Contractor DTOs
 ├── audit/                          # Audit logging infrastructure
 ├── config/                         # Spring configuration classes
-├── controller/                     # REST API endpoints
-├── domain/                         # JPA entities
+├── controller/                     # Core module REST endpoints
+├── domain/                         # Core module JPA entities
 ├── event/                          # Domain events
-├── repository/                     # Data access layer
+│   └── listener/                   # Event listeners
+├── observability/                  # Logging and monitoring
+├── repository/                     # Core module data access
 ├── security/                       # Authentication & authorization
-├── service/                        # Business logic
-│   └── dto/                        # Data transfer objects
+├── service/                        # Core module business logic
+│   └── dto/                        # Core module DTOs
 └── tenant/                         # Multi-tenancy context
 ```
 
@@ -57,12 +71,16 @@ graph TD
 
 ### `controller/`
 
-REST API endpoints that handle HTTP requests and responses.
+REST API endpoints that handle HTTP requests and responses for core modules (documents, incidents, employees, roles).
 
 **Key Classes:**
 - `DocumentController` - Document control endpoints
 - `IncidentController` - Incident management endpoints
 - `EmployeeController` - Employee management
+- `RoleController` - RBAC role management
+- `ClauseController` - ISO clause endpoints
+- `DepartmentController` - Department management
+- `StandardController` - Compliance standards
 - `HealthController` - Health check endpoints
 
 **Responsibilities:**
@@ -85,6 +103,40 @@ public class DocumentController {
     }
 }
 ```
+
+### `assurance/`
+
+Complete module for asset inspection and assurance management.
+
+**Package Structure:**
+- `controller/` - AssetController, InspectionController, InspectionChecklistController, InspectionMetadataController
+- `domain/` - Asset, Inspection, InspectionChecklist, InspectionFinding, InspectionAttachment
+- `dto/` - Request/response DTOs for inspections
+- `repository/` - Data access for inspection entities
+- `service/` - AssetService, InspectionService, InspectionChecklistService, InspectionMetadataService
+
+**Responsibilities:**
+- Manage inspectable assets
+- Conduct inspections with checklists
+- Record findings and attach photos
+- Track inspection status and completion
+
+### `contractor/`
+
+Complete module for contractor compliance management.
+
+**Package Structure:**
+- `controller/` - ContractorController
+- `domain/` - Contractor, ContractorWorker, ContractorDocument, ContractorSite
+- `repository/` - Data access for contractor entities
+- `service/` - ContractorService, ContractorWorkerService, ContractorDocumentService
+  - `dto/` - Request/response DTOs for contractors
+
+**Responsibilities:**
+- Manage contractor companies and workers
+- Track compliance documentation
+- Monitor document expiry
+- Control site access permissions
 
 ### `service/`
 

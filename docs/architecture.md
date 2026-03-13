@@ -2,16 +2,17 @@
 
 ## Purpose
 
-OmniSolve API is a multi-tenant SaaS backend that provides compliance management capabilities. The system is designed to support multiple independent organisations (tenants) with complete data isolation while sharing infrastructure and reference data.
+OmniSolve API is a comprehensive multi-tenant SaaS backend that provides compliance management capabilities across multiple domains. The system is designed to support multiple independent organisations (tenants) with complete data isolation while sharing infrastructure and reference data.
 
 ## Key Responsibilities
 
 - Enforce multi-tenant data isolation at the database and application layers
-- Provide RESTful APIs for document control and incident management
+- Provide RESTful APIs for document control, incident management, contractor management, and asset inspections
 - Authenticate users via AWS Cognito and validate JWT tokens
-- Store and version documents in AWS S3
+- Store documents, attachments, and inspection photos in AWS S3
 - Maintain audit trails for compliance tracking
 - Publish domain events for asynchronous processing
+- Support multi-standard compliance (ISO 9001, ISO 14001, ISO 45001)
 
 ## High-Level Architecture
 
@@ -156,25 +157,38 @@ sequenceDiagram
 
 ## Module Boundaries
 
-The system is organized into two primary business modules:
+The system is organized into four primary business modules:
 
-**Document Control Module**
-- Entities: Document, DocumentVersion, DocumentType, DocumentStatus
-- Services: DocumentService, DocumentTypeService
-- Controllers: DocumentController, DocumentTypeController
+**Document Control Module** (`controller/`, `domain/`, `service/`)
+- Entities: Document, DocumentVersion, DocumentType, DocumentStatus, Clause
+- Services: DocumentService, DocumentTypeService, ClauseService
+- Controllers: DocumentController, DocumentTypeController, ClauseController
 - Workflows: Draft → Pending Approval → Active → Archived
 
-**Incident Management Module**
-- Entities: Incident, IncidentInvestigation, IncidentAction, IncidentComment
+**Incident Management Module** (`controller/`, `domain/`, `service/`)
+- Entities: Incident, IncidentInvestigation, IncidentAction, IncidentComment, IncidentAttachment
 - Services: IncidentService
 - Controllers: IncidentController
 - Workflows: Reported → Under Review → Investigation → Action Required → Closed
 
+**Contractor Management Module** (`contractor/`)
+- Entities: Contractor, ContractorWorker, ContractorDocument, ContractorSite
+- Services: ContractorService, ContractorWorkerService, ContractorDocumentService
+- Controllers: ContractorController
+- Features: Compliance tracking, document expiry monitoring, site access control
+
+**Asset Inspection Module** (`assurance/`)
+- Entities: Asset, Inspection, InspectionChecklist, InspectionFinding, InspectionAttachment
+- Services: AssetService, InspectionService, InspectionChecklistService, InspectionMetadataService
+- Controllers: AssetController, InspectionController, InspectionChecklistController, InspectionMetadataController
+- Workflows: Scheduled → In Progress → Completed
+
 **Shared Infrastructure**
 - Multi-tenancy: Organisation, Employee, Site
 - RBAC: Role, Permission, RolePermission
-- Reference Data: Department, Clause
+- Reference Data: Department, Standard, Clause
 - Audit: AuditLog, AuditService
+- Events: Domain event publishing and listeners
 
 ## Key Design Patterns
 
