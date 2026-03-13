@@ -1,385 +1,267 @@
-# Architecture
+# System Architecture
 
-## System Overview
+## Purpose
 
-OmniSolve API is a document control system built with Spring Boot that manages organizational documents with version control, workflow states, and AWS S3 storage integration. The system provides RESTful APIs for managing documents, clauses, departments, and document types with OAuth2 JWT authentication via AWS Cognito.
+OmniSolve API is a comprehensive multi-tenant SaaS backend that provides compliance management capabilities across multiple domains. The system is designed to support multiple independent organisations (tenants) with complete data isolation while sharing infrastructure and reference data.
 
-## Architecture Diagram
+## Key Responsibilities
+
+- Enforce multi-tenant data isolation at the database and application layers
+- Provide RESTful APIs for document control, incident management, contractor management, and asset inspections
+- Authenticate users via AWS Cognito and validate JWT tokens
+- Store documents, attachments, and inspection photos in AWS S3
+- Maintain audit trails for compliance tracking
+- Publish domain events for asynchronous processing
+- Support multi-standard compliance (ISO 9001, ISO 14001, ISO 45001)
+
+## High-Level Architecture
 
 ```mermaid
 graph TB
     subgraph "Client Layer"
-        Client[Web/Mobile Client]
+        Web[Web Application]
+        Mobile[Mobile App]
     end
     
-    subgraph "AWS Cloud"
-        subgraph "Elastic Beanstalk"
-            API[Spring Boot API<br/>Java 21]
-        end
-        
-        subgraph "Data Layer"
-            RDS[(PostgreSQL 15<br/>RDS)]
-            S3[S3 Bucket<br/>Document Storage]
-        end
-        
-        subgraph "Security"
-            Cognito[AWS Cognito<br/>JWT Auth]
-        end
+    subgraph "Authentication"
+        Cognito[AWS Cognito<br/>User Pool]
     end
     
-    subgraph "CI/CD"
-        GitHub[GitHub Actions]
-        GHCR[GitHub Container<br/>Registry]
+    subgraph "Application Layer"
+        LB[Load Balancer]
+        API[Spring Boot API<br/>Elastic Beanstalk]
     end
     
-    Client -->|HTTPS| API
-    API -->|SQL| RDS
-    API -->|Store/Retrieve Files| S3
-    Client -->|Authenticate| Cognito
-    Cognito -->|JWT Token| Client
-    Client -->|Bearer Token| API
-    API -->|Validate JWT| Cognito
+    subgraph "Data Layer"
+        RDS[(PostgreSQL RDS)]
+        S3[S3 Bucket<br/>Documents]
+    end
     
-    GitHub -->|Build & Test| API
-    GitHub -->|Push Image| GHCR
-    GitHub -->|Deploy JAR| API
+    Web -->|HTTPS + JWT| LB
+    Mobile -->|HTTPS + JWT| LB
+    LB --> API
+    API -->|Validate Token| Cognito
+    API -->|SQL Queries| RDS
+    API -->|Upload/Download| S3
     
-    style API fill:#4CAF50
-    style RDS fill:#2196F3
-    style S3 fill:#FF9800
-    style Cognito fill:#9C27B0
+    style API fill:#4A90E2
+    style RDS fill:#2ECC71
+    style S3 fill:#F39C12
+    style Cognito fill:#E74C3C
 ```
 
-## Component Architecture
+## Layered Architecture
 
-### Application Layers
+The application follows a clean layered architecture with clear separation of concerns:
 
 ```mermaid
-graph LR
-    subgraph "Spring Boot Application"
-        Controller[Controllers<br/>REST Endpoints]
-        Service[Services<br/>Business Logic]
-        Repository[Repositories<br/>Data Access]
-        Domain[Domain<br/>JPA Entities]
-        Config[Configuration<br/>Security, S3, OpenAPI]
-    end
+graph TD
+    Controller[Controller Layer<br/>REST Endpoints]
+    Service[Service Layer<br/>Business Logic]
+    Repository[Repository Layer<br/>Data Access]
+    Domain[Domain Layer<br/>Entities]
     
-    Controller --> Service
-    Service --> Repository
-    Repository --> Domain
-    Config -.-> Controller
-    Config -.-> Service
+    Controller -->|Calls| Service
+    Service -->|Uses| Repository
+    Repository -->|Maps| Domain
     
-    style Controller fill:#4CAF50
-    style Service fill:#2196F3
-    style Repository fill:#FF9800
-    style Domain fill:#9C27B0
+    Security[Security Layer<br/>JWT Validation]
+    Audit[Audit Layer<br/>AOP Logging]
+    Events[Event Layer<br/>Domain Events]
+    
+    Security -.->|Intercepts| Controller
+    Audit -.->|Intercepts| Service
+    Service -->|Publishes| Events
+    
+    style Controller fill:#3498DB
+    style Service fill:#2ECC71
+    style Repository fill:#F39C12
+    style Domain fill:#9B59B6
+    style Security fill:#E74C3C
+    style Audit fill:#1ABC9C
+    style Events fill:#E67E22
 ```
 
-### Core Components
+### Layer Responsibilities
 
-#### 1. Controllers (REST API Layer)
-- `HealthController` - Health check endpoint
-- `DocumentController` - Document CRUD and workflow operations
-- `ClauseController` - ISO clause management
-- `DepartmentController` - Department management
-- `DocumentTypeController` - Document type management
+**Controller Layer** (`controller/`)
+- Expose REST endpoints
+- Validate request payloads
+- Map DTOs to service calls
+- Handle HTTP concerns (status codes, headers)
 
-#### 2. Services (Business Logic Layer)
-- `DocumentService` - Document lifecycle, workflow state transitions, S3 integration
-- `ClauseService` - Clause operations
-- `DepartmentService` - Department operations
-- `DocumentTypeService` - Document type operations
+**Service Layer** (`service/`)
+- Implement business logic
+- Enforce business rules and workflows
+- Coordinate transactions
+- Publish domain events
+- Resolve tenant context via SecurityContextFacade
 
-#### 3. Repositories (Data Access Layer)
-- JPA repositories for database operations
-- Spring Data JPA for CRUD operations
+**Repository Layer** (`repository/`)
+- Provide data access abstractions
+- Execute SQL queries via Spring Data JPA
+- Enforce tenant filtering in queries
 
-#### 4. Domain (Data Model)
-- `Document` - Core document entity with metadata
-- `DocumentVersion` - Version history with S3 references
-- `Clause` - ISO clauses linked to documents
-- `Department` - Organizational departments
-- `DocumentType` - Document categorization
-- `DocumentStatus` - Workflow states
-- `AuditLog` - Audit trail for all operations
+**Domain Layer** (`domain/`)
+- Define entity models
+- Map to database tables via JPA annotations
+- Represent core business concepts
 
-#### 5. Configuration
-- `JwtSecurityConfig` - OAuth2 JWT authentication with Cognito
-- `S3Config` - AWS S3 client configuration
-- `OpenApiConfig` - Swagger/OpenAPI documentation
+**Security Layer** (`security/`)
+- Validate JWT tokens from Cognito
+- Extract user identity and tenant context
+- Populate SecurityContext and TenantContext
 
-## Data Model
+**Audit Layer** (`audit/`)
+- Intercept service methods via AOP
+- Write immutable audit logs asynchronously
+- Track who did what and when
 
-```mermaid
-erDiagram
-    DOCUMENTS ||--o{ DOCUMENT_VERSIONS : has
-    DOCUMENTS }o--|| DOCUMENT_TYPES : categorized_by
-    DOCUMENTS }o--|| DEPARTMENTS : owned_by
-    DOCUMENTS }o--|| DOCUMENT_STATUSES : has_status
-    DOCUMENTS }o--o{ CLAUSES : linked_to
-    DOCUMENTS ||--o{ DOCUMENT_REVIEWS : reviewed_by
-    
-    DOCUMENTS {
-        uuid id PK
-        varchar document_number UK
-        varchar title
-        varchar summary
-        bigint type_id FK
-        bigint department_id FK
-        bigint status_id FK
-        varchar owner_id
-        timestamptz next_review_at
-        timestamptz created_at
-        timestamptz updated_at
-    }
-    
-    DOCUMENT_VERSIONS {
-        bigserial id PK
-        uuid document_id FK
-        int version_number
-        varchar s3_key
-        varchar file_name
-        bigint file_size
-        varchar mime_type
-        timestamptz uploaded_at
-    }
-    
-    CLAUSES {
-        bigserial id PK
-        varchar code UK
-        varchar title
-        varchar description
-    }
-    
-    DEPARTMENTS {
-        bigserial id PK
-        varchar name UK
-        varchar description
-    }
-    
-    DOCUMENT_TYPES {
-        bigserial id PK
-        varchar name UK
-        varchar description
-    }
-    
-    DOCUMENT_STATUSES {
-        bigserial id PK
-        varchar name UK
-    }
-```
+**Event Layer** (`event/`)
+- Define domain events (DocumentApproved, IncidentClosed, etc.)
+- Decouple side effects from core business logic
+- Enable asynchronous processing
 
-## Document Workflow
-
-```mermaid
-stateDiagram-v2
-    [*] --> Draft
-    Draft --> Pending: submit()
-    Pending --> Active: approve()
-    Pending --> Draft: reject()
-    Active --> Archived: archive()
-    Archived --> [*]
-    
-    note right of Draft
-        Initial state
-        Editable
-    end note
-    
-    note right of Pending
-        Awaiting approval
-        Read-only
-    end note
-    
-    note right of Active
-        Approved & published
-        Read-only
-    end note
-    
-    note right of Archived
-        Retired document
-        Read-only
-    end note
-```
-
-## Security Architecture
-
-### Authentication Flow
+## Service Interaction Flow
 
 ```mermaid
 sequenceDiagram
     participant Client
-    participant API
-    participant Cognito
-    participant RDS
+    participant Controller
+    participant Security
+    participant Service
+    participant Repository
+    participant Database
     participant S3
+    participant EventBus
     
-    Client->>Cognito: Login (username/password)
-    Cognito->>Client: JWT Token
+    Client->>Controller: POST /api/documents
+    Controller->>Security: Validate JWT
+    Security->>Security: Extract user + tenant
+    Security-->>Controller: AuthenticatedUser
+    Controller->>Service: createDocument(request, user)
+    Service->>Repository: findById(organisationId)
+    Repository->>Database: SELECT * FROM organisations
+    Database-->>Repository: Organisation
+    Repository-->>Service: Organisation
+    Service->>Repository: save(document)
+    Repository->>Database: INSERT INTO documents
+    Database-->>Repository: Document
+    Repository-->>Service: Document
+    Service->>EventBus: publish(DocumentCreatedEvent)
+    Service-->>Controller: DocumentResponse
+    Controller-->>Client: 201 Created
     
-    Client->>API: Request + Bearer Token
-    API->>Cognito: Validate JWT
-    Cognito->>API: Token Valid + Claims
-    
-    API->>RDS: Query Data
-    RDS->>API: Results
-    
-    API->>S3: Store/Retrieve Files
-    S3->>API: File Data
-    
-    API->>Client: Response
+    Note over EventBus: Async listeners handle<br/>notifications, timeline
 ```
 
-### Security Features
+## Module Boundaries
 
-- **OAuth2 JWT Authentication**: AWS Cognito integration for user authentication
-- **Bearer Token Authorization**: All API endpoints (except health check) require valid JWT
-- **Audience Validation**: Custom validator ensures JWT audience matches expected client ID
-- **Configurable Security**: JWT can be disabled for local development
-- **IAM Roles**: EC2 instances use IAM roles for S3 access (no hardcoded credentials)
+The system is organized into four primary business modules:
 
-## AWS Infrastructure
+**Document Control Module** (`controller/`, `domain/`, `service/`)
+- Entities: Document, DocumentVersion, DocumentType, DocumentStatus, Clause
+- Services: DocumentService, DocumentTypeService, ClauseService
+- Controllers: DocumentController, DocumentTypeController, ClauseController
+- Workflows: Draft → Pending Approval → Active → Archived
 
-```mermaid
-graph TB
-    subgraph "VPC"
-        subgraph "Public Subnets"
-            EB[Elastic Beanstalk<br/>EC2 Instance]
-        end
-        
-        subgraph "Private Subnets"
-            RDS[(RDS PostgreSQL)]
-        end
-        
-        SG_EB[Security Group<br/>Beanstalk]
-        SG_RDS[Security Group<br/>RDS]
-    end
-    
-    S3_Docs[S3 Bucket<br/>Documents]
-    S3_Deploy[S3 Bucket<br/>Deployments]
-    
-    Internet[Internet] -->|HTTP/HTTPS| EB
-    EB -->|Port 5432| RDS
-    EB -->|S3 API| S3_Docs
-    EB -.->|IAM Role| S3_Docs
-    
-    SG_EB -.->|Allow 5432| SG_RDS
-    
-    style EB fill:#4CAF50
-    style RDS fill:#2196F3
-    style S3_Docs fill:#FF9800
-```
+**Incident Management Module** (`controller/`, `domain/`, `service/`)
+- Entities: Incident, IncidentInvestigation, IncidentAction, IncidentComment, IncidentAttachment
+- Services: IncidentService
+- Controllers: IncidentController
+- Workflows: Reported → Under Review → Investigation → Action Required → Closed
 
-### Infrastructure Components
+**Contractor Management Module** (`contractor/`)
+- Entities: Contractor, ContractorWorker, ContractorDocument, ContractorSite
+- Services: ContractorService, ContractorWorkerService, ContractorDocumentService
+- Controllers: ContractorController
+- Features: Compliance tracking, document expiry monitoring, site access control
 
-- **Elastic Beanstalk**: Single-instance Java application platform
-- **RDS PostgreSQL 15**: Managed database with automated backups
-- **S3 Buckets**: 
-  - Document storage with versioning and encryption
-  - Deployment artifacts storage
-- **VPC**: Network isolation with public/private subnets
-- **Security Groups**: Network access control
-- **IAM Roles**: Service permissions without credentials
+**Asset Inspection Module** (`assurance/`)
+- Entities: Asset, Inspection, InspectionChecklist, InspectionFinding, InspectionAttachment
+- Services: AssetService, InspectionService, InspectionChecklistService, InspectionMetadataService
+- Controllers: AssetController, InspectionController, InspectionChecklistController, InspectionMetadataController
+- Workflows: Scheduled → In Progress → Completed
 
-## CI/CD Pipeline
+**Shared Infrastructure**
+- Multi-tenancy: Organisation, Employee, Site
+- RBAC: Role, Permission, RolePermission
+- Reference Data: Department, Standard, Clause
+- Audit: AuditLog, AuditService
+- Events: Domain event publishing and listeners
 
-```mermaid
-graph LR
-    A[Code Push] --> B[Build]
-    B --> C[Test]
-    C --> D[Quality Check<br/>Qodana]
-    D --> E[Docker Build]
-    E --> F[Deploy DEV]
-    F --> G{Manual<br/>Approval}
-    G -->|Approved| H[Deploy PROD]
-    
-    style A fill:#9E9E9E
-    style B fill:#4CAF50
-    style C fill:#2196F3
-    style D fill:#FF9800
-    style E fill:#9C27B0
-    style F fill:#00BCD4
-    style G fill:#FFC107
-    style H fill:#F44336
-```
+## Key Design Patterns
 
-### Pipeline Stages
+**Dependency Injection**
+- All components are Spring-managed beans
+- Constructor injection for required dependencies
+- Enables testability and loose coupling
 
-1. **Build**: Maven compilation and packaging
-2. **Test**: Unit and integration tests with PostgreSQL
-3. **Quality**: Qodana code quality analysis
-4. **Docker**: Build and push container images to GHCR
-5. **Deploy DEV**: Automatic deployment to development environment
-6. **Deploy PROD**: Manual approval required for production
+**Repository Pattern**
+- Spring Data JPA repositories abstract data access
+- Custom query methods enforce tenant filtering
+- Reduces SQL boilerplate
 
-## Technology Stack
+**Facade Pattern**
+- SecurityContextFacade wraps SecurityContextHolder
+- Provides typed AuthenticatedUser instead of raw JWT
+- Simplifies service layer code
 
-### Backend
-- **Framework**: Spring Boot 3.3.5
-- **Language**: Java 21
-- **Security**: Spring Security + OAuth2 Resource Server
-- **Database**: PostgreSQL 15
-- **ORM**: Spring Data JPA + Hibernate
-- **Migrations**: Flyway
-- **Cloud SDK**: AWS SDK for Java (S3)
+**Event-Driven Architecture**
+- Services publish domain events after state changes
+- Listeners handle side effects asynchronously
+- Decouples core logic from notifications
 
-### Infrastructure
-- **IaC**: Terraform
-- **Cloud**: AWS (Elastic Beanstalk, RDS, S3, Cognito)
-- **CI/CD**: GitHub Actions
-- **Container**: Docker
-- **Registry**: GitHub Container Registry (GHCR)
+**AOP for Cross-Cutting Concerns**
+- @Auditable annotation triggers audit logging
+- @Transactional manages database transactions
+- @Cacheable optimizes read-heavy operations
 
-### Development
-- **Build Tool**: Maven
-- **API Docs**: SpringDoc OpenAPI 3 (Swagger UI)
-- **Testing**: JUnit 5, Testcontainers, Embedded PostgreSQL
-- **Code Quality**: JetBrains Qodana
+## Technology Choices
 
-## Deployment Architecture
+**Spring Boot 3.3.5**
+- Mature ecosystem with excellent AWS integration
+- Built-in security, data access, and web capabilities
+- Production-ready with health checks and metrics
 
-### Environment Separation
+**PostgreSQL**
+- ACID compliance for financial and compliance data
+- Rich indexing for multi-tenant queries
+- UUID support for distributed systems
 
-| Environment | Purpose | Deployment | Database | S3 Bucket |
-|-------------|---------|------------|----------|-----------|
-| **Local** | Development | Manual | Docker Compose | Local bucket |
-| **DEV** | Testing | Automatic on push to main | RDS t3.micro | dev-documents |
-| **PROD** | Production | Manual approval | RDS t3.micro | prod-documents |
+**AWS Cognito**
+- Managed authentication service
+- JWT token issuance and validation
+- User pool management
 
-### Configuration Management
+**AWS S3**
+- Scalable object storage for documents
+- Versioning support
+- Cost-effective for large files
 
-- **Environment Variables**: Injected via Elastic Beanstalk environment settings
-- **Spring Profiles**: `local`, `dev`, `prod`
-- **Secrets**: Stored in GitHub Secrets and AWS Parameter Store
-- **Terraform State**: Remote backend in S3 with DynamoDB locking
+**Flyway**
+- Version-controlled database migrations
+- Repeatable and auditable schema changes
+- Supports rollback strategies
 
 ## Scalability Considerations
 
-### Current Architecture
-- Single-instance Elastic Beanstalk (suitable for small-medium workloads)
-- Single-AZ RDS (cost-optimized)
-- S3 for file storage (inherently scalable)
+**Horizontal Scaling**
+- Stateless API design allows multiple instances
+- Elastic Beanstalk auto-scaling based on load
+- Database connection pooling
 
-### Future Scaling Options
-- **Horizontal Scaling**: Switch to load-balanced Elastic Beanstalk environment
-- **Database**: Enable Multi-AZ RDS for high availability
-- **Caching**: Add Redis/ElastiCache for session and query caching
-- **CDN**: CloudFront for S3 document delivery
-- **Async Processing**: SQS + Lambda for background tasks
+**Caching Strategy**
+- Spring Cache abstraction with in-memory cache
+- Cache document stats and incident dashboards
+- Cache eviction on write operations
 
-## Monitoring and Observability
+**Asynchronous Processing**
+- Audit logging runs in background thread pool
+- Domain events processed asynchronously
+- Prevents blocking user requests
 
-### Health Checks
-- **Endpoint**: `/api/health`
-- **Elastic Beanstalk**: Monitors application health
-- **CI/CD**: Post-deployment health verification
-
-### Logging
-- **Application Logs**: Spring Boot logging to stdout
-- **Elastic Beanstalk**: Aggregates logs to CloudWatch
-- **Audit Trail**: Database audit_logs table for all operations
-
-### Metrics
-- **Elastic Beanstalk**: CPU, memory, network metrics
-- **RDS**: Database performance metrics
-- **S3**: Storage and request metrics
+**Database Optimization**
+- Composite indexes on (organisation_id, status_id)
+- Lazy loading for entity relationships
+- Read-only transactions for queries

@@ -1,6 +1,7 @@
 package com.omnisolve.service.dto;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record DocumentResponse(
@@ -19,7 +20,8 @@ public record DocumentResponse(
         String createdBy,
         OffsetDateTime nextReviewAt,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        List<Long> clauseIds
 ) {
 }
 

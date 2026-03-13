@@ -23,11 +23,15 @@ class ClauseControllerIT extends IntegrationTestBase {
 
     @Test
     void shouldCreateClause() {
+        // First, get a standard ID from the seeded data (ISO-9001 should have ID 1)
         String uniqueCode = "4.1." + System.currentTimeMillis();
         Map<String, Object> request = Map.of(
+                "standardId", 1L,  // ISO-9001 from V2__seed_data.sql
                 "code", uniqueCode,
                 "title", "Understanding the organization and its context",
-                "description", "The organization shall determine external and internal issues"
+                "description", "The organization shall determine external and internal issues",
+                "level", 2,
+                "sortOrder", 1
         );
 
         ResponseEntity<Map> response = restTemplate.postForEntity("/api/clauses", request, Map.class);

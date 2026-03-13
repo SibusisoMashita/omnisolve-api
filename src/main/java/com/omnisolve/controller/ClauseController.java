@@ -1,8 +1,8 @@
 package com.omnisolve.controller;
 
-import com.omnisolve.domain.Clause;
 import com.omnisolve.service.ClauseService;
 import com.omnisolve.service.dto.ClauseRequest;
+import com.omnisolve.service.dto.ClauseResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,20 +30,26 @@ public class ClauseController {
 
     @GetMapping
     @Operation(summary = "List clauses")
-    public List<Clause> getAll() {
+    public List<ClauseResponse> getAll() {
+        return service.list();
+    }
+
+    @GetMapping("/tree")
+    @Operation(summary = "Get clause tree with hierarchical structure")
+    public List<ClauseResponse> getTree() {
         return service.list();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create a clause")
-    public Clause create(@RequestBody ClauseRequest request) {
+    public ClauseResponse create(@RequestBody ClauseRequest request) {
         return service.create(request);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update a clause")
-    public Clause update(@Parameter(description = "Clause id") @PathVariable Long id, @RequestBody ClauseRequest request) {
+    public ClauseResponse update(@Parameter(description = "Clause id") @PathVariable Long id, @RequestBody ClauseRequest request) {
         return service.update(id, request);
     }
 }

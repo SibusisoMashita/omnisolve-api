@@ -1,20 +1,20 @@
 # OmniSolve API
 
-A Spring Boot-based document control system for managing organizational documents, clauses, departments, and document types with version control and AWS S3 storage integration.
+A comprehensive multi-tenant SaaS platform for compliance management, providing document control, incident management, contractor management, and asset inspection capabilities for organizations managing ISO 9001, ISO 14001, and ISO 45001 compliance.
 
 Developed by [Valo Systems](https://valosystems.co.za/)
 
 ## Tech Stack
 
 - **Backend**: Spring Boot 3.3.5, Java 21
-- **Database**: PostgreSQL 15 with Flyway migrations
+- **Database**: PostgreSQL 16 with Flyway migrations
 - **Security**: Spring Security, OAuth2 JWT (AWS Cognito)
 - **Cloud**: AWS (Elastic Beanstalk, RDS, S3)
 - **Infrastructure**: Terraform
 - **CI/CD**: GitHub Actions
 - **Containerization**: Docker
 - **API Documentation**: SpringDoc OpenAPI (Swagger UI)
-- **Testing**: JUnit, Testcontainers, Embedded PostgreSQL
+- **Testing**: JUnit, Embedded PostgreSQL
 
 ## Quick Start
 
@@ -39,6 +39,17 @@ The API will be available at `http://localhost:5000`
 
 Swagger UI: `http://localhost:5000/swagger-ui.html`
 
+## Core Features
+
+- **Document Control**: Manage policies, procedures, and manuals with workflow, versioning, and ISO clause linking
+- **Incident Management**: Track workplace incidents from report through investigation to closure
+- **Contractor Management**: Manage contractor compliance, workers, and document requirements
+- **Asset Inspections**: Conduct inspections on assets with checklists, findings, and attachments
+- **Multi-Tenancy**: Complete data isolation between organizations with shared infrastructure
+- **RBAC**: Role-based access control with organization-scoped permissions
+- **Audit Trail**: Comprehensive audit logging for compliance tracking
+- **AWS Integration**: S3 storage, Cognito authentication, and Elastic Beanstalk hosting
+
 ## Repository Structure
 
 ```
@@ -46,12 +57,17 @@ omnisolve-api/
 ├── src/                    # Application source code
 │   ├── main/java/          # Java source files
 │   │   └── com/omnisolve/  # Main package
+│   │       ├── assurance/  # Asset inspection module
+│   │       ├── contractor/ # Contractor management module
+│   │       ├── audit/      # Audit logging infrastructure
 │   │       ├── config/     # Configuration classes
-│   │       ├── controller/ # REST controllers
-│   │       ├── domain/     # JPA entities
+│   │       ├── controller/ # REST controllers (core modules)
+│   │       ├── domain/     # JPA entities (core modules)
+│   │       ├── event/      # Domain events
 │   │       ├── repository/ # Data repositories
 │   │       ├── security/   # Security configuration
-│   │       └── service/    # Business logic
+│   │       ├── service/    # Business logic
+│   │       └── tenant/     # Multi-tenancy context
 │   └── main/resources/     # Application properties & DB migrations
 ├── infrastructure/         # Terraform IaC
 │   ├── modules/omnisolve/  # Reusable Terraform module
@@ -59,6 +75,7 @@ omnisolve-api/
 │   └── prod/               # Production environment
 ├── .github/workflows/      # CI/CD pipeline definitions
 ├── scripts/                # Deployment and utility scripts
+├── docs/                   # Comprehensive documentation
 ├── Dockerfile              # Container image definition
 └── docker-compose.yml      # Local development setup
 ```
@@ -80,14 +97,26 @@ Infrastructure is provisioned using Terraform with separate configurations for d
 
 Detailed documentation is available in the [`docs/`](./docs) directory:
 
-- [Architecture](./docs/architecture.md) - System architecture and design
-- [API Documentation](./docs/api.md) - API endpoints and usage
-- [Authentication](./docs/authentication.md) - JWT, Cognito, and request authorization
-- [Authentication Migration Guide](./docs/authentication-migration-guide.md) - rollout and compatibility notes
-- [Deployment Guide](./docs/deployment.md) - CI/CD pipeline and deployment process
-- [Infrastructure](./docs/infrastructure.md) - Terraform and AWS resources
-- [Local Development](./docs/local-development.md) - Development environment setup
-- [Troubleshooting](./docs/troubleshooting.md) - Common issues and solutions
+**Getting Started:**
+- [System Overview](./docs/system-overview.md) - Complete system introduction and capabilities
+
+**Architecture & Design:**
+- [Architecture](./docs/architecture.md) - System architecture and design patterns
+- [Backend Structure](./docs/backend-structure.md) - Package organization and conventions
+- [Database](./docs/database.md) - Schema design and migration strategy
+- [Multi-Tenancy](./docs/multi-tenancy.md) - Tenant isolation and data scoping
+- [Security](./docs/security.md) - Authentication, authorization, and JWT validation
+
+**Modules:**
+- [Document Control](./docs/document-module.md) - Document lifecycle and version management
+- [Incident Management](./docs/incident-module.md) - Incident tracking and investigation
+- [Contractor Management](./docs/contractor-module.md) - Contractor compliance and workers
+- [Asset Inspections](./docs/assurance-module.md) - Asset inspections and checklists
+
+**Development & Operations:**
+- [Development Guide](./docs/development.md) - Local setup and testing
+- [API Endpoints](./docs/api-endpoints.md) - Complete API reference
+- [AWS Infrastructure](./docs/aws-infrastructure.md) - Cloud architecture and deployment
 
 ## License
 

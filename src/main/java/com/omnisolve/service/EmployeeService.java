@@ -10,7 +10,7 @@ import com.omnisolve.repository.EmployeeRepository;
 import com.omnisolve.repository.OrganisationRepository;
 import com.omnisolve.repository.RoleRepository;
 import com.omnisolve.repository.SiteRepository;
-import com.omnisolve.security.AuthenticationUtil;
+import com.omnisolve.security.SecurityContextFacade;
 import com.omnisolve.service.dto.CognitoUserResult;
 import com.omnisolve.service.dto.EmployeeRequest;
 import com.omnisolve.service.dto.EmployeeResponse;
@@ -36,6 +36,7 @@ public class EmployeeService {
     private final DepartmentRepository departmentRepository;
     private final RoleRepository roleRepository;
     private final CognitoService cognitoService;
+    private final SecurityContextFacade securityContextFacade;
 
     public EmployeeService(
             EmployeeRepository employeeRepository,
@@ -43,7 +44,8 @@ public class EmployeeService {
             SiteRepository siteRepository,
             DepartmentRepository departmentRepository,
             RoleRepository roleRepository,
-            CognitoService cognitoService
+            CognitoService cognitoService,
+            SecurityContextFacade securityContextFacade
     ) {
         this.employeeRepository = employeeRepository;
         this.organisationRepository = organisationRepository;
@@ -51,6 +53,7 @@ public class EmployeeService {
         this.departmentRepository = departmentRepository;
         this.roleRepository = roleRepository;
         this.cognitoService = cognitoService;
+        this.securityContextFacade = securityContextFacade;
     }
 
     /**
@@ -75,23 +78,10 @@ public class EmployeeService {
 
     /**
      * Get the authenticated user's organisation ID.
-     * This enforces multi-tenant security by ensuring all operations are scoped to the user's organisation.
-     *
-     * @return The organisation ID of the authenticated user
+     * Delegates to {@link SecurityContextFacade} which consolidates all user/tenant resolution.
      */
     private Long getAuthenticatedUserOrganisationId() {
-        String userId = AuthenticationUtil.getAuthenticatedUserId();
-        log.debug("Retrieving organisation for authenticated user: userId={}", userId);
-
-        Employee authenticatedEmployee = employeeRepository.findByCognitoSub(userId)
-                .orElseThrow(() -> {
-                    log.warn("Authenticated user not found in employees table: userId={}", userId);
-                    return new ResponseStatusException(FORBIDDEN, "User not associated with any organisation");
-                });
-
-        Long organisationId = authenticatedEmployee.getOrganisation().getId();
-        log.debug("Authenticated user organisation: userId={}, organisationId={}", userId, organisationId);
-        return organisationId;
+        return securityContextFacade.currentUser().organisationId();
     }
 
     /**
