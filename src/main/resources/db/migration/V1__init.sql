@@ -363,3 +363,199 @@ CREATE INDEX idx_incident_comments_incident_id ON incident_comments(incident_id)
 CREATE INDEX idx_audit_logs_organisation_id ON audit_logs(organisation_id);
 CREATE INDEX idx_audit_logs_entity ON audit_logs(entity_name, entity_id);
 CREATE INDEX idx_audit_logs_performed_at ON audit_logs(performed_at);
+
+
+-- ============================================================================
+-- OmniSolve Assurance - Inspections Module
+-- ============================================================================
+
+-- ============================================================================
+-- INSPECTION TYPES
+-- Allows inspections engine to support audits, safety walks etc.
+-- ============================================================================
+
+CREATE TABLE inspection_types (
+                                  id BIGSERIAL PRIMARY KEY,
+                                  code VARCHAR(100) NOT NULL UNIQUE,
+                                  name VARCHAR(255) NOT NULL,
+                                  description VARCHAR(1000)
+);
+
+
+-- ============================================================================
+-- INSPECTION SEVERITIES
+-- ============================================================================
+
+CREATE TABLE inspection_severities (
+                                       id BIGSERIAL PRIMARY KEY,
+                                       name VARCHAR(50) NOT NULL UNIQUE,
+                                       level INTEGER NOT NULL
+);
+
+
+-- ============================================================================
+-- ASSET TYPES (global reference data)
+-- ============================================================================
+
+CREATE TABLE asset_types (
+                             id BIGSERIAL PRIMARY KEY,
+                             name VARCHAR(255) NOT NULL UNIQUE,
+                             description VARCHAR(1000)
+);
+
+
+-- ============================================================================
+-- ASSETS (organisation-scoped inspectable items)
+-- ============================================================================
+
+CREATE TABLE assets (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        organisation_id BIGINT NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+                        asset_type_id BIGINT NOT NULL REFERENCES asset_types(id),
+                        name VARCHAR(255) NOT NULL,
+                        asset_tag VARCHAR(100),
+                        serial_number VARCHAR(100),
+                        site_id BIGINT REFERENCES sites(id),
+                        department_id BIGINT REFERENCES departments(id),
+                        status VARCHAR(50) NOT NULL DEFAULT 'Active',
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+                        UNIQUE (organisation_id, asset_tag)
+);
+
+
+-- ============================================================================
+-- INSPECTIONS
+-- ============================================================================
+
+CREATE TABLE inspections (
+                             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                             organisation_id BIGINT NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+                             asset_id UUID NOT NULL REFERENCES assets(id),
+                             inspection_type_id BIGINT REFERENCES inspection_types(id),
+
+                             inspection_number VARCHAR(100) NOT NULL,
+                             title VARCHAR(255) NOT NULL,
+                             inspector_id VARCHAR(255),
+
+                             status VARCHAR(50) NOT NULL DEFAULT 'SCHEDULED',
+
+                             scheduled_at TIMESTAMPTZ,
+                             started_at TIMESTAMPTZ,
+                             completed_at TIMESTAMPTZ,
+
+                             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+                             UNIQUE (organisation_id, inspection_number)
+);
+
+
+-- ============================================================================
+-- INSPECTION CHECKLIST TEMPLATES
+-- ============================================================================
+
+CREATE TABLE inspection_checklists (
+                                       id BIGSERIAL PRIMARY KEY,
+                                       name VARCHAR(255) NOT NULL,
+                                       description VARCHAR(1000),
+                                       asset_type_id BIGINT REFERENCES asset_types(id)
+);
+
+
+-- ============================================================================
+-- CHECKLIST ITEMS
+-- ============================================================================
+
+CREATE TABLE inspection_checklist_items (
+                                            id BIGSERIAL PRIMARY KEY,
+                                            checklist_id BIGINT NOT NULL REFERENCES inspection_checklists(id) ON DELETE CASCADE,
+                                            title VARCHAR(255) NOT NULL,
+                                            description TEXT,
+                                            sort_order INT NOT NULL DEFAULT 0
+);
+
+
+-- ============================================================================
+-- INSPECTION RESULTS
+-- ============================================================================
+
+CREATE TABLE inspection_items (
+                                  id BIGSERIAL PRIMARY KEY,
+                                  inspection_id UUID NOT NULL REFERENCES inspections(id) ON DELETE CASCADE,
+                                  checklist_item_id BIGINT REFERENCES inspection_checklist_items(id),
+
+                                  status VARCHAR(50) NOT NULL,
+                                  notes TEXT
+);
+
+
+-- ============================================================================
+-- INSPECTION FINDINGS
+-- ============================================================================
+
+CREATE TABLE inspection_findings (
+                                     id BIGSERIAL PRIMARY KEY,
+                                     inspection_id UUID NOT NULL REFERENCES inspections(id) ON DELETE CASCADE,
+                                     clause_id BIGINT REFERENCES clauses(id),
+                                     severity_id BIGINT REFERENCES inspection_severities(id),
+
+                                     description TEXT NOT NULL,
+                                     action_required BOOLEAN NOT NULL DEFAULT FALSE,
+
+                                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+-- ============================================================================
+-- INSPECTION ATTACHMENTS
+-- ============================================================================
+
+CREATE TABLE inspection_attachments (
+                                        id BIGSERIAL PRIMARY KEY,
+                                        inspection_id UUID NOT NULL REFERENCES inspections(id) ON DELETE CASCADE,
+
+                                        s3_key VARCHAR(500) NOT NULL,
+                                        file_name VARCHAR(255) NOT NULL,
+                                        file_size BIGINT,
+                                        mime_type VARCHAR(100),
+
+                                        uploaded_by VARCHAR(255) NOT NULL,
+                                        uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+-- ============================================================================
+-- OPTIONAL TAGGING SYSTEM (future flexibility)
+-- ============================================================================
+
+CREATE TABLE tags (
+                      id BIGSERIAL PRIMARY KEY,
+                      name VARCHAR(100) NOT NULL UNIQUE,
+                      category VARCHAR(100)
+);
+
+CREATE TABLE inspection_tags (
+                                 inspection_id UUID NOT NULL REFERENCES inspections(id) ON DELETE CASCADE,
+                                 tag_id BIGINT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+                                 PRIMARY KEY (inspection_id, tag_id)
+);
+
+
+-- ============================================================================
+-- INDEXES
+-- ============================================================================
+
+CREATE INDEX idx_assets_org ON assets(organisation_id);
+CREATE INDEX idx_inspections_org ON inspections(organisation_id);
+CREATE INDEX idx_inspections_asset ON inspections(asset_id);
+
+CREATE INDEX idx_inspection_items_inspection
+    ON inspection_items(inspection_id);
+
+CREATE INDEX idx_inspection_findings_inspection
+    ON inspection_findings(inspection_id);
+
+CREATE INDEX idx_inspection_attachments_inspection
+    ON inspection_attachments(inspection_id);

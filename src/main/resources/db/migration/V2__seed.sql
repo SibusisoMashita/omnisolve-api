@@ -830,3 +830,72 @@ CROSS JOIN LATERAL (
 ) AS links(doc_num, clause_code)
 JOIN clauses c ON c.code = links.clause_code AND c.standard_id = (SELECT id FROM standards WHERE code = 'ISO-9001')
 WHERE d.document_number = links.doc_num;
+
+
+-- ============================================================================
+-- Inspection Types
+-- ============================================================================
+
+INSERT INTO inspection_types (code, name, description) VALUES
+                                                           ('INSPECTION', 'Inspection', 'Standard operational inspection'),
+                                                           ('AUDIT', 'Audit', 'Internal or external audit'),
+                                                           ('SAFETY_WALK', 'Safety Walk', 'Safety observation walk'),
+                                                           ('ENV_CHECK', 'Environmental Check', 'Environmental compliance inspection'),
+                                                           ('RISK_REVIEW', 'Risk Review', 'Risk assessment review');
+
+
+-- ============================================================================
+-- Inspection Severities
+-- ============================================================================
+
+INSERT INTO inspection_severities (name, level) VALUES
+                                                    ('Low', 1),
+                                                    ('Medium', 2),
+                                                    ('High', 3),
+                                                    ('Critical', 4);
+
+
+-- ============================================================================
+-- Asset Types
+-- ============================================================================
+
+INSERT INTO asset_types (name, description) VALUES
+                                                ('Vehicle', 'Cars, trucks, vans and other motor vehicles'),
+                                                ('Forklift', 'Forklifts and material handling equipment'),
+                                                ('Fire Equipment', 'Fire extinguishers and suppression systems'),
+                                                ('Electrical Equipment', 'Electrical panels and switchboards'),
+                                                ('PPE', 'Personal protective equipment');
+
+
+-- ============================================================================
+-- Inspection Checklists
+-- ============================================================================
+
+INSERT INTO inspection_checklists (name, description, asset_type_id) VALUES
+                                                                         ('Vehicle Pre-Trip Inspection', 'Daily vehicle pre-trip inspection checklist', 1),
+                                                                         ('Forklift Pre-Shift Inspection', 'Pre-shift forklift safety inspection', 2),
+                                                                         ('Fire Extinguisher Monthly Check', 'Monthly fire extinguisher inspection', 3);
+
+
+-- ============================================================================
+-- Checklist Items
+-- ============================================================================
+
+INSERT INTO inspection_checklist_items (checklist_id, title, description, sort_order) VALUES
+                                                                                          (1, 'Tyres', 'Check tyre pressure and condition', 1),
+                                                                                          (1, 'Lights', 'Check headlights, indicators and brake lights', 2),
+                                                                                          (1, 'Brakes', 'Check brake function', 3),
+                                                                                          (1, 'Fire Extinguisher Present', 'Confirm fire extinguisher is present', 4),
+                                                                                          (1, 'Oil Level', 'Check engine oil level', 5),
+                                                                                          (1, 'Windscreen', 'Check windscreen for cracks', 6),
+
+                                                                                          (2, 'Forks', 'Inspect forks for cracks or damage', 1),
+                                                                                          (2, 'Hydraulics', 'Check hydraulic system for leaks', 2),
+                                                                                          (2, 'Horn', 'Verify horn is audible', 3),
+                                                                                          (2, 'Brakes', 'Test service and parking brake', 4),
+                                                                                          (2, 'Tyres', 'Inspect tyre condition', 5),
+
+                                                                                          (3, 'Pressure Gauge', 'Pressure gauge in green zone', 1),
+                                                                                          (3, 'Safety Pin', 'Safety pin and seal intact', 2),
+                                                                                          (3, 'Physical Damage', 'Inspect extinguisher body', 3),
+                                                                                          (3, 'Label Legible', 'Operating instructions visible', 4);
