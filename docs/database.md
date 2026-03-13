@@ -62,9 +62,8 @@ Flyway manages database schema changes through versioned SQL scripts.
 
 ```
 src/main/resources/db/migration/
-├── V1__init.sql                      # Initial schema (all core tables)
-├── V2__seed.sql                      # Reference data + demo org
-└── V3__contractor_management.sql    # Contractor module
+├── V1__init_schema.sql               # Full schema creation (CREATE statements only)
+└── V2__seed_data.sql                 # Reference data, lookup values, and default records (INSERT statements only)
 ```
 
 ### Migration Strategy
@@ -76,9 +75,8 @@ src/main/resources/db/migration/
 - Insert reference data
 
 **Naming Convention:**
-- `V1__init.sql` - Initial schema setup (documents, incidents, inspections, assets)
-- `V2__seed.sql` - Seed reference data and demo organisation
-- `V3__contractor_management.sql` - Add contractor management module
+- `V1__init_schema.sql` - Initial schema setup for all tables, extensions, and indexes
+- `V2__seed_data.sql` - Seed reference data and default system records
 
 **Flyway Configuration:**
 ```yaml
@@ -97,13 +95,12 @@ spring:
 SELECT * FROM flyway_schema_history;
 
 -- Example output:
--- installed_rank | version | description              | success
--- 1              | 1       | init                     | true
--- 2              | 2       | seed                     | true
--- 3              | 3       | contractor management    | true
+-- installed_rank | version | description   | success
+-- 1              | 1       | init schema   | true
+-- 2              | 2       | seed data     | true
 ```
 
-## V1__init.sql - Initial Schema
+## V1__init_schema.sql - Initial Schema
 
 This migration creates the complete multi-tenant schema with multi-standard support and all core modules:
 
@@ -228,7 +225,7 @@ CREATE TABLE inspections (
 );
 ```
 
-## V2__seed.sql - Reference Data
+## V2__seed_data.sql - Reference Data
 
 This migration seeds all global reference data including multi-standard support:
 
@@ -293,9 +290,9 @@ INSERT INTO organisations (name, created_at, updated_at)
 VALUES ('OmniSolve Demo Organisation', NOW(), NOW());
 ```
 
-## V3__contractor_management.sql - Contractor Module
+## Contractor Module (included in `V1__init_schema.sql` and `V2__seed_data.sql`)
 
-This migration adds the contractor management module:
+The contractor management schema now lives in `V1__init_schema.sql`, and its related demo/reference data remains in `V2__seed_data.sql`.
 
 **Contractors (Tenant-Scoped):**
 ```sql
