@@ -60,6 +60,8 @@ public class CacheConfig {
     public static final String DOCUMENT_STATS    = "documentStats";
     /** Cache name for per-organisation incident dashboard metrics. */
     public static final String INCIDENT_DASHBOARD = "incidentDashboard";
+    /** Cache name for per-organisation risk dashboard metrics. */
+    public static final String RISK_DASHBOARD = "riskDashboard";
 
     @Bean
     public CacheManager cacheManager() {
@@ -71,12 +73,13 @@ public class CacheConfig {
                 INCIDENT_TYPES,
                 INCIDENT_SEVERITIES,
                 DOCUMENT_STATS,
-                INCIDENT_DASHBOARD
+                INCIDENT_DASHBOARD,
+                RISK_DASHBOARD
         ));
         log.info("Cache manager initialized with caches: {}",
                 List.of(CLAUSES, DOCUMENT_TYPES, DEPARTMENTS,
                         INCIDENT_TYPES, INCIDENT_SEVERITIES,
-                        DOCUMENT_STATS, INCIDENT_DASHBOARD));
+                        DOCUMENT_STATS, INCIDENT_DASHBOARD, RISK_DASHBOARD));
         return manager;
     }
 }
