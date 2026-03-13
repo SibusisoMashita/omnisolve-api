@@ -4,7 +4,8 @@ import java.util.UUID;
 
 public record ContractorComplianceResponse(
         UUID contractorId,
-        String name,
+        String contractorName,
+        long workers,
         long requiredDocuments,
         long validDocuments,
         long expiringDocuments,

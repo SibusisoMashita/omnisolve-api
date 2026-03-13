@@ -139,22 +139,21 @@ public class ContractorService {
         long valid    = p.getValidDocuments();
         long expiring = p.getExpiringDocuments();
         long expired  = p.getExpiredDocuments();
-        long missing  = p.getMissingDocuments();
+        long missing  = required - p.getCoveredDocuments();
 
         int score = required > 0 ? (int) Math.round((double) valid / required * 100) : 100;
-        String status = computeStatus(required, valid, expired, expiring, missing);
+        String status = computeStatus(expired, expiring, missing);
 
         return new ContractorComplianceResponse(
                 UUID.fromString(p.getContractorId()),
-                p.getName(),
+                p.getContractorName(),
+                p.getWorkers(),
                 required, valid, expiring, expired, missing,
                 score, status);
     }
 
-    private String computeStatus(long required, long valid, long expired, long expiring, long missing) {
-        if (required == 0 || valid == required) return "COMPLIANT";
-        if (expired > 0) return "NON_COMPLIANT";
-        if (missing > 0) return "INCOMPLETE";
+    private String computeStatus(long expired, long expiring, long missing) {
+        if (expired > 0 || missing > 0) return "NON_COMPLIANT";
         if (expiring > 0) return "EXPIRING";
         return "COMPLIANT";
     }

@@ -2,10 +2,11 @@ package com.omnisolve.contractor.repository;
 
 public interface ContractorComplianceProjection {
     String getContractorId();
-    String getName();
+    String getContractorName();
+    long getWorkers();
     long getRequiredDocuments();
     long getValidDocuments();
     long getExpiringDocuments();
     long getExpiredDocuments();
-    long getMissingDocuments();
+    long getCoveredDocuments();
 }
